@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Fynovo Finance",
   description: "Income, expenses and profit & loss at a glance.",
   manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Fynovo" },
 };
 export const viewport: Viewport = { themeColor: "#177C63", width: "device-width", initialScale: 1 };

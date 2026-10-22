@@ -26,6 +26,9 @@ export async function POST(request: Request) {
       apiKey = decryptSecret(integration.encryptedApiKey);
     }
     await new FynovoApiClient(input.data.baseUrl, apiKey, contract).validate();
+    if (suppliedApiKey || process.env.DEMO_MODE !== "true") {
+      await FynovoIntegration.updateOne({ userId: user.id }, { apiKeyLastUsedAt: new Date() });
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     const status = error instanceof FynovoApiError && error.status === 401 ? 401 : 502;

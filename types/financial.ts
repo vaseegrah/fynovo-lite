@@ -1,5 +1,6 @@
 export type TransactionKind = "income" | "expense";
 export type TransactionStatus = "paid" | "pending" | "cancelled" | "refunded" | "voided";
+export type BusinessName = "Techvaseegrah" | "Vaseegrah Veda" | "Vaseegrah Vanam" | "Spa Vaseegrah";
 
 export interface FinancialTransaction {
   id: string;
@@ -11,6 +12,7 @@ export interface FinancialTransaction {
   amount: number;
   currency: string;
   paymentMethod: string;
+  business?: BusinessName;
   status: TransactionStatus;
   source: "fynovo" | "manual" | "demo";
 }
@@ -35,7 +37,14 @@ export interface DateRange {
 export interface IntegrationPublicData {
   configured: boolean;
   baseUrl?: string;
+  apiKeyName?: string;
+  apiKeyPrefix?: string;
   apiKeyLast4?: string;
+  apiKeyPermissions?: string[];
+  apiKeyCreatedAt?: string;
+  apiKeyExpiresAt?: string;
+  apiKeyLastUsedAt?: string;
+  apiKeyStatus?: "active" | "expired" | "revoked";
   lastSyncAt?: string;
   lastSyncStatus?: "success" | "failed" | "running" | "never";
   syncIntervalMinutes?: number;

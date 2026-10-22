@@ -11,6 +11,7 @@ const SyncedTransactionSchema = new Schema({
   amountMinor: { type: Number, required: true },
   currency: { type: String, default: "INR" },
   paymentMethod: String,
+  business: { type: String, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Vanam", "Spa Vaseegrah"], default: "Techvaseegrah" },
   status: { type: String, required: true },
   rawPayload: { type: Schema.Types.Mixed, select: false },
 }, { timestamps: true });

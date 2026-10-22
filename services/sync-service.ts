@@ -5,6 +5,7 @@ import { FynovoIntegration } from "@/models/FynovoIntegration";
 import { SyncedTransaction } from "@/models/SyncedTransaction";
 import { SyncHistory } from "@/models/SyncHistory";
 import { configuredFynovoContract } from "@/lib/fynovo-contract";
+import { normaliseBusinessName } from "@/lib/businesses";
 
 const field = (value: unknown, path: string) => path.split(".").reduce<unknown>((current, key) => current && typeof current === "object" ? (current as Record<string, unknown>)[key] : undefined, value);
 const firstField = (value: unknown, paths: string[]) => paths.map((path) => field(value, path)).find((item) => item !== undefined && item !== null && item !== "");
@@ -37,7 +38,7 @@ export async function syncIntegration(userId: string) {
         if (Number.isNaN(transactionDate.getTime())) throw new Error("Fynovo transaction date is invalid.");
         await SyncedTransaction.updateOne(
           { userId, integrationId: integration._id, originalTransactionId: originalId },
-          { $set: { type, transactionDate, amountMinor: amount, description: String(firstField(entry, [spec.description, "title", "note", "merchant"]) ?? ""), category: String(firstField(entry, [spec.category, "category.name"]) ?? "Uncategorised"), paymentMethod: String(firstField(entry, [spec.paymentMethod, "paymentMode", "payment_method"]) ?? ""), status: normaliseStatus(firstField(entry, [spec.status, "state"])), currency: String(firstField(entry, [spec.currency || "", "currency"]) ?? "INR"), rawPayload: entry } },
+          { $set: { type, transactionDate, amountMinor: amount, description: String(firstField(entry, [spec.description, "title", "note", "merchant"]) ?? ""), category: String(firstField(entry, [spec.category, "category.name"]) ?? "Uncategorised"), paymentMethod: String(firstField(entry, [spec.paymentMethod, "paymentMode", "payment_method"]) ?? ""), business: normaliseBusinessName(firstField(entry, ["business", "businessName", "brand", "brandName", "store", "storeName", "organization"])), status: normaliseStatus(firstField(entry, [spec.status, "state"])), currency: String(firstField(entry, [spec.currency || "", "currency"]) ?? "INR"), rawPayload: entry } },
           { upsert: true },
         );
         processed++;
@@ -45,7 +46,7 @@ export async function syncIntegration(userId: string) {
     }
     const now = new Date();
     await Promise.all([
-      FynovoIntegration.updateOne({ _id: integration._id }, { lastSyncStatus: "success", lastSyncAt: now, $unset: { lastSyncError: 1 } }),
+      FynovoIntegration.updateOne({ _id: integration._id }, { lastSyncStatus: "success", lastSyncAt: now, apiKeyLastUsedAt: now, $unset: { lastSyncError: 1 } }),
       SyncHistory.updateOne({ _id: history._id }, { status: "success", transactionsProcessed: processed, finishedAt: now }),
     ]);
     return { processed };

@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   await connectToDatabase();
   const integrations = await FynovoIntegration.find({ lastSyncStatus: { $ne: "running" } }).select("userId lastSyncAt syncIntervalMinutes").lean();
   const now = Date.now();
-  const due = integrations.filter((integration) => !integration.lastSyncAt || integration.lastSyncAt.getTime() <= now - (integration.syncIntervalMinutes || 360) * 60_000);
+  const due = integrations.filter((integration) => !integration.lastSyncAt || integration.lastSyncAt.getTime() <= now - (integration.syncIntervalMinutes || 1440) * 60_000);
   const results = await Promise.allSettled(due.map((integration) => syncIntegration(integration.userId.toString())));
   return NextResponse.json({ ok: true, processed: results.filter((item) => item.status === "fulfilled").length, failed: results.filter((item) => item.status === "rejected").length });
 }

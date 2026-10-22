@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, LoaderCircle, RefreshCw } from "lucide-react";
+import { LoaderCircle, RefreshCw, Settings } from "lucide-react";
+import Link from "next/link";
+import { InstallAppButton, RealtimeStatus } from "@/components/pwa-controls";
 
 export function PageHeader({ eyebrow, title, action }: { eyebrow?: string; title: string; action?: React.ReactNode }) {
-  return <header className="flex items-center justify-between gap-3 border-b border-line bg-white px-5 py-4 md:px-8"><div><p className="text-xs font-medium text-brand">{eyebrow || "FINANCE OVERVIEW"}</p><h1 className="mt-0.5 text-xl font-semibold tracking-tight md:text-2xl">{title}</h1></div><div className="flex items-center gap-2">{action}<button aria-label="Notifications" className="grid h-10 w-10 place-items-center rounded-full border border-line text-muted"><Bell size={18} /></button></div></header>;
+  return <header className="sticky top-0 z-10 flex min-h-[65px] items-center justify-between gap-3 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-5 md:px-8"><div className="min-w-0"><p className="truncate text-[10px] font-medium uppercase tracking-wide text-brand">{eyebrow || "FINANCE OVERVIEW"}</p><h1 className="mt-0.5 truncate text-lg font-semibold tracking-tight sm:text-xl md:text-2xl">{title}</h1></div><div className="flex shrink-0 items-center gap-1.5 sm:gap-2"><RealtimeStatus /><InstallAppButton />{action}<Link href="/settings" aria-label="Settings" className="grid h-9 w-9 place-items-center rounded-full border border-line text-muted hover:bg-slate-50 hover:text-ink sm:h-10 sm:w-10"><Settings size={17} /></Link></div></header>;
 }
 
 export function SyncButton() {
