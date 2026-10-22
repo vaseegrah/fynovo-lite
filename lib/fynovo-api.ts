@@ -26,13 +26,18 @@ function pathAt(object: unknown, path: string): unknown {
   }, object);
 }
 
-function transactionItems(data: unknown, itemsPath?: string) {
-  if (itemsPath) {
-    const items = pathAt(data, itemsPath);
-    if (Array.isArray(items)) return items;
-  }
+function transactionItems(data: unknown, itemsPath: string | undefined, kind: "income" | "expense") {
   if (Array.isArray(data)) return data;
-  for (const path of ["data", "transactions", "results", "items", "data.transactions"]) {
+  const typeNames = kind === "income" ? ["income", "incomes"] : ["expense", "expenses"];
+  const paths = [
+    ...(itemsPath ? [itemsPath] : []),
+    ...typeNames,
+    ...typeNames.map((name) => `data.${name}`),
+    ...typeNames.map((name) => `result.${name}`),
+    "data", "data.items", "data.transactions", "data.results", "data.data",
+    "result", "result.items", "result.data", "transactions", "results", "items",
+  ];
+  for (const path of paths) {
     const items = pathAt(data, path);
     if (Array.isArray(items)) return items;
   }
@@ -64,7 +69,7 @@ export class FynovoApiClient {
 
   async list(kind: "income" | "expense") {
     const data = await this.request(kind === "income" ? this.contract.incomePath : this.contract.expensePath);
-    const items = transactionItems(data, this.contract.pagination?.itemsPath);
+    const items = transactionItems(data, this.contract.pagination?.itemsPath, kind);
     if (!items) throw new FynovoApiError("The configured Fynovo response is not a transaction array.");
     return items;
   }
