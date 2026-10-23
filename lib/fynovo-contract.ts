@@ -6,30 +6,48 @@ const defaultFields = {
   amount: "amount",
   category: "category",
   description: "description",
-  paymentMethod: "paymentMethod",
+  paymentMethod: "paymentMode",
   status: "status",
   currency: "currency",
 };
 
-const defaultTransactionsContract: FynovoContract = {
+export const defaultTransactionsContract: FynovoContract = {
   healthPath: "",
-  incomePath: "?type=income&limit=100",
-  expensePath: "?type=expense&limit=100",
+  incomePath: "",
+  expensePath: "",
   authHeader: "Authorization",
   authPrefix: "Bearer ",
   fields: defaultFields,
 };
 
-function defaultContractFor(baseUrl?: string): FynovoContract | null {
-  if (!baseUrl) return null;
+export function defaultContractFor(baseUrl?: string): FynovoContract {
+  if (!baseUrl) return defaultTransactionsContract;
   try {
     const url = new URL(baseUrl);
     const path = url.pathname.replace(/\/$/, "");
-    if (path.endsWith("/transactions")) return defaultTransactionsContract;
-    if (path.endsWith("/income")) return { ...defaultTransactionsContract, incomePath: "?limit=100", expensePath: `${path.replace(/\/income$/, "/expenses")}?limit=100` };
-    if (path.endsWith("/expenses")) return { ...defaultTransactionsContract, incomePath: `${path.replace(/\/expenses$/, "/income")}?limit=100`, expensePath: "?limit=100" };
-  } catch { /* Fall through to a custom contract. */ }
-  return null;
+    if (path.endsWith("/income")) {
+      return {
+        ...defaultTransactionsContract,
+        incomePath: "",
+        expensePath: "",
+      };
+    }
+    if (path.endsWith("/transactions")) {
+      return {
+        ...defaultTransactionsContract,
+        incomePath: "",
+        expensePath: "",
+      };
+    }
+    if (path.endsWith("/expenses") || path.endsWith("/expense")) {
+      return {
+        ...defaultTransactionsContract,
+        incomePath: "",
+        expensePath: "",
+      };
+    }
+  } catch { /* Fall through */ }
+  return defaultTransactionsContract;
 }
 
 export function configuredFynovoContract(baseUrl?: string): FynovoContract | null {
@@ -37,7 +55,9 @@ export function configuredFynovoContract(baseUrl?: string): FynovoContract | nul
   if (!raw) return defaultContractFor(baseUrl);
   try {
     const contract = JSON.parse(raw) as FynovoContract;
-    if (!contract.healthPath || !contract.incomePath || !contract.expensePath || !contract.fields) return null;
+    if (!contract.fields) return defaultContractFor(baseUrl);
     return contract;
-  } catch { return defaultContractFor(baseUrl); }
+  } catch {
+    return defaultContractFor(baseUrl);
+  }
 }

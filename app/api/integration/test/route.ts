@@ -14,7 +14,6 @@ export async function POST(request: Request) {
   const input = schema.safeParse(await request.json().catch(() => null));
   if (!input.success) return NextResponse.json({ error: "Enter a valid API base URL." }, { status: 400 });
   const suppliedApiKey = input.data.apiKey?.trim() || "";
-  if (process.env.DEMO_MODE === "true") return NextResponse.json({ ok: true, message: "Demo connection verified." });
   const contract = configuredFynovoContract(input.data.baseUrl);
   if (!contract) return NextResponse.json({ error: "Fynovo endpoint mapping has not been configured. Add verified API documentation before testing a production key." }, { status: 422 });
   try {
@@ -26,9 +25,7 @@ export async function POST(request: Request) {
       apiKey = decryptSecret(integration.encryptedApiKey);
     }
     await new FynovoApiClient(input.data.baseUrl, apiKey, contract).validate();
-    if (suppliedApiKey || process.env.DEMO_MODE !== "true") {
-      await FynovoIntegration.updateOne({ userId: user.id }, { apiKeyLastUsedAt: new Date() });
-    }
+    await FynovoIntegration.updateOne({ userId: user.id }, { apiKeyLastUsedAt: new Date() });
     return NextResponse.json({ ok: true });
   } catch (error) {
     const status = error instanceof FynovoApiError && error.status === 401 ? 401 : 502;

@@ -2,9 +2,19 @@ import type { DateRange, FinancialSummary, FinancialTransaction } from "@/types/
 
 const excludedStatuses = new Set(["cancelled", "voided"]);
 
+export function reportingDate(date: Date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 export function isEligibleTransaction(transaction: FinancialTransaction) {
-  // Pending items are visible but excluded until paid. Refunds are imported by the
-  // connector as reversing records so they are applied consistently once settled.
+  // Pending items are excluded until settled/paid.
   return transaction.status === "paid" && !excludedStatuses.has(transaction.status);
 }
 
@@ -39,10 +49,9 @@ export function formatCurrency(amountInPaise: number, currency = "INR") {
 }
 
 export function startOfMonthIso() {
-  const date = new Date();
-  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
+  return `${reportingDate().slice(0, 7)}-01`;
 }
 
 export function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return reportingDate();
 }

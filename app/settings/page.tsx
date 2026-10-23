@@ -5,4 +5,16 @@ import { requireUser } from "@/lib/require-user";
 import { getIntegrationForUser } from "@/services/integration-service";
 import { getPreferencesForUser } from "@/services/preferences-service";
 
-export default async function Settings() { const user = await requireUser(); const [integration, preferences] = await Promise.all([getIntegrationForUser(user.id), getPreferencesForUser(user.id)]); return <AppShell><PageHeader eyebrow="CONNECTION & PREFERENCES" title="Settings" /><SettingsPage integration={integration} preferences={preferences} /></AppShell>; }
+export default async function Settings() {
+  const user = await requireUser();
+  const [integration, preferences] = await Promise.all([
+    getIntegrationForUser(user.id),
+    getPreferencesForUser(user.id),
+  ]);
+  return (
+    <AppShell>
+      <PageHeader eyebrow="CONNECTION & PREFERENCES" title="Settings" />
+      <SettingsPage integration={integration} preferences={preferences} />
+    </AppShell>
+  );
+}

@@ -5,8 +5,8 @@ const cookieName = "fynovo_session";
 
 function secret() {
   const value = process.env.SESSION_SECRET;
-  if (!value && process.env.DEMO_MODE !== "true") throw new Error("SESSION_SECRET is required.");
-  return new TextEncoder().encode(value || "development-only-demo-secret-change-me");
+  if (!value) throw new Error("SESSION_SECRET is required.");
+  return new TextEncoder().encode(value);
 }
 
 export interface SessionUser { id: string; email: string; name: string }

@@ -6,17 +6,17 @@ import { SyncedTransaction } from "@/models/SyncedTransaction";
 import { SyncHistory } from "@/models/SyncHistory";
 import { configuredFynovoContract } from "@/lib/fynovo-contract";
 import { normaliseBusinessName } from "@/lib/businesses";
+import { ensureSyncedTransactionIndexes } from "@/services/transaction-index-service";
+import { amountInMinorUnits } from "@/lib/transaction-amount";
+import { transactionStatus } from "@/lib/transaction-status";
 
 const field = (value: unknown, path: string) => path.split(".").reduce<unknown>((current, key) => current && typeof current === "object" ? (current as Record<string, unknown>)[key] : undefined, value);
 const firstField = (value: unknown, paths: string[]) => paths.map((path) => field(value, path)).find((item) => item !== undefined && item !== null && item !== "");
-const normaliseStatus = (value: unknown) => {
-  const status = String(value ?? "paid").toLowerCase();
-  return ["completed", "settled", "success", "received", "deposited", "credited", "posted", "approved"].includes(status) ? "paid" : status;
-};
-
+const firstFieldWithPath = (value: unknown, paths: string[]) => paths.map((path) => ({ path, value: field(value, path) })).find((item) => item.value !== undefined && item.value !== null && item.value !== "");
+const textValue = (value: unknown, fallback: string) => typeof value === "string" || typeof value === "number" ? String(value) : fallback;
 export async function syncIntegration(userId: string) {
-  if (process.env.DEMO_MODE === "true") return { processed: 0, message: "Demo mode: sample data is already current." };
   await connectToDatabase();
+  await ensureSyncedTransactionIndexes();
   const integration = await FynovoIntegration.findOne({ userId }).select("+encryptedApiKey");
   if (!integration) throw new Error("Connect Fynovo before syncing.");
   const contract = configuredFynovoContract(integration.baseUrl) || (integration.apiContract as FynovoContract | undefined);
@@ -32,13 +32,14 @@ export async function syncIntegration(userId: string) {
         const spec = contract.fields;
         const originalId = String(firstField(entry, [spec.id, "_id", "externalId", "transaction_id", "transactionId"]) ?? "");
         if (!originalId) continue;
-        const amount = Number(firstField(entry, [spec.amount, "amountMinor", "amount"]));
+        const amountField = firstFieldWithPath(entry, [spec.amount, "amountMinor", "amount", "totalAmount", "total", "value"]);
+        const amount = amountField ? amountInMinorUnits(amountField.value, amountField.path) : Number.NaN;
         if (!Number.isSafeInteger(amount)) throw new Error("Fynovo amount must map to an integer minor-unit value.");
-        const transactionDate = new Date(String(firstField(entry, [spec.date, "transactionDate", "transaction_date", "createdAt"]) ?? ""));
+        const transactionDate = new Date(String(firstField(entry, [spec.date, "transactionDate", "transaction_date", "createdAt", "created_at", "timestamp"]) ?? ""));
         if (Number.isNaN(transactionDate.getTime())) throw new Error("Fynovo transaction date is invalid.");
         await SyncedTransaction.updateOne(
           { userId, integrationId: integration._id, originalTransactionId: originalId },
-          { $set: { type, transactionDate, amountMinor: amount, description: String(firstField(entry, [spec.description, "title", "note", "merchant"]) ?? ""), category: String(firstField(entry, [spec.category, "category.name"]) ?? "Uncategorised"), paymentMethod: String(firstField(entry, [spec.paymentMethod, "paymentMode", "payment_method"]) ?? ""), business: normaliseBusinessName(firstField(entry, ["business", "businessName", "brand", "brandName", "store", "storeName", "organization"])), status: normaliseStatus(firstField(entry, [spec.status, "state"])), currency: String(firstField(entry, [spec.currency || "", "currency"]) ?? "INR"), rawPayload: entry } },
+          { $set: { type, transactionDate, amountMinor: amount, description: textValue(firstField(entry, [spec.description, "title", "note", "merchant"]), ""), category: textValue(firstField(entry, [`${spec.category}.name`, spec.category, "category.name", "category"]), "Uncategorised"), paymentMethod: textValue(firstField(entry, [spec.paymentMethod, "paymentMode", "payment_method", "method"]), ""), business: normaliseBusinessName(firstField(entry, ["business.name", "business", "businessName", "brand.name", "brand", "brandName", "store.name", "store", "storeName", "organization"])), status: transactionStatus(entry, spec.status), currency: textValue(firstField(entry, [spec.currency || "", "currency"]), "INR"), rawPayload: entry } },
           { upsert: true },
         );
         processed++;

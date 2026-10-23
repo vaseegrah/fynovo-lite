@@ -11,7 +11,6 @@ export async function POST(request: Request) {
   const input = schema.safeParse(await request.json().catch(() => null));
   if (!input.success) return NextResponse.json({ error: "Enter a valid email and password." }, { status: 400 });
   if (!withinRateLimit(`login:${input.data.email.toLowerCase()}`, 8)) return NextResponse.json({ error: "Too many sign-in attempts. Please wait a minute." }, { status: 429 });
-  if (process.env.DEMO_MODE === "true" && input.data.email === "demo@fynovo.app" && input.data.password === "fynovo-demo") { await createSession({ id: "demo-user", email: input.data.email, name: "Demo user" }); return NextResponse.json({ ok: true }); }
   try {
     await connectToDatabase(); const user = await User.findOne({ email: input.data.email.toLowerCase() });
     if (!user || !(await bcrypt.compare(input.data.password, user.passwordHash))) return NextResponse.json({ error: "Incorrect email or password." }, { status: 401 });

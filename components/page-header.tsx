@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LoaderCircle, RefreshCw, Settings } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { InstallAppButton, RealtimeStatus } from "@/components/pwa-controls";
 
 export function PageHeader({ eyebrow, title, action }: { eyebrow?: string; title: string; action?: React.ReactNode }) {
@@ -10,7 +11,28 @@ export function PageHeader({ eyebrow, title, action }: { eyebrow?: string; title
 }
 
 export function SyncButton() {
-  const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
-  const sync = async () => { setBusy(true); setError(null); try { const response = await fetch("/api/integration/sync", { method: "POST" }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "Synchronization failed."); window.location.reload(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Synchronization failed."); } finally { setBusy(false); } };
-  return <div className="flex items-center gap-2"><button onClick={sync} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-white px-3 text-sm font-semibold text-ink shadow-sm hover:bg-slate-50 disabled:opacity-60">{busy ? <LoaderCircle className="animate-spin" size={16} /> : <RefreshCw size={16} />} <span className="hidden sm:inline">Sync now</span></button>{error && <span role="alert" className="max-w-52 text-right text-xs text-danger">{error}</span>}</div>;
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const sync = async () => {
+    setBusy(true); setMessage(null); setError(null);
+    try {
+      const response = await fetch("/api/integration/sync", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Synchronization failed.");
+      if (data.failed) {
+        const failedBrands = (data.brands || []).filter((brand: { error?: string }) => brand.error);
+        setError(`${data.processed} records synced. ${failedBrands.map((brand: { brand: string; error: string }) => `${brand.brand}: ${brand.error}`).join("; ")}`);
+      } else if (!data.processed) {
+        setMessage("Sync completed, but no transactions were returned by the configured APIs.");
+      } else {
+        setMessage(`Synced ${data.processed} records from your configured brand APIs.`);
+      }
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Synchronization failed.");
+    } finally { setBusy(false); }
+  };
+  return <div className="flex items-center gap-2"><button onClick={sync} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-white px-3 text-sm font-semibold text-ink shadow-sm hover:bg-slate-50 disabled:opacity-60">{busy ? <LoaderCircle className="animate-spin" size={16} /> : <RefreshCw size={16} />} <span className="hidden sm:inline">Sync now</span></button>{message && <span role="status" className="max-w-52 text-right text-xs text-brand">{message}</span>}{error && <span role="alert" className="max-w-52 text-right text-xs text-danger">{error}</span>}</div>;
 }

@@ -23,7 +23,6 @@ export async function POST(request: Request) {
   const input = schema.safeParse(await request.json().catch(() => null));
   if (!input.success) return NextResponse.json({ error: "Enter a valid HTTPS API base URL and sync interval." }, { status: 400 });
   const apiKey = input.data.apiKey?.trim() || "";
-  if (process.env.DEMO_MODE === "true") return NextResponse.json({ ok: true, message: "Demo mode does not persist credentials." });
   try {
     const url = new URL(input.data.baseUrl); if (url.protocol !== "https:") return NextResponse.json({ error: "The Fynovo API URL must use HTTPS." }, { status: 400 });
     await connectToDatabase(); const existing = await FynovoIntegration.findOne({ userId: user.id });

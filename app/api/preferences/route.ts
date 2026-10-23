@@ -8,7 +8,6 @@ const schema = z.object({ currency: z.enum(["INR", "USD", "EUR", "GBP"]), pendin
 export async function POST(request: Request) {
   const { user, response } = await apiUser(); if (!user) return response!;
   const input = schema.safeParse(await request.json().catch(() => null)); if (!input.success) return NextResponse.json({ error: "Invalid preferences." }, { status: 400 });
-  if (process.env.DEMO_MODE === "true") return NextResponse.json({ ok: true });
   await connectToDatabase(); await UserPreferences.findOneAndUpdate({ userId: user.id }, { $set: input.data, $setOnInsert: { userId: user.id } }, { upsert: true, runValidators: true });
   return NextResponse.json({ ok: true });
 }
