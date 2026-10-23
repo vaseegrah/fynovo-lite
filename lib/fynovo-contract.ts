@@ -35,8 +35,8 @@ export function defaultContractFor(baseUrl?: string): FynovoContract {
     if (path.endsWith("/transactions")) {
       return {
         ...defaultTransactionsContract,
-        incomePath: "",
-        expensePath: "",
+        incomePath: "?type=income",
+        expensePath: "?type=expense",
       };
     }
     if (path.endsWith("/expenses") || path.endsWith("/expense")) {

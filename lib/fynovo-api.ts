@@ -26,10 +26,13 @@ function pathAt(object: unknown, path: string): unknown {
   }, object);
 }
 
-function extractItems(data: unknown, itemsPath: string | undefined): unknown[] | null {
+function extractItems(data: unknown, itemsPath: string | undefined, kind: "income" | "expense"): unknown[] | null {
   if (Array.isArray(data)) return data;
+  const kindNames = kind === "income" ? ["income", "incomes"] : ["expense", "expenses"];
   const paths = [
     ...(itemsPath ? [itemsPath] : []),
+    ...kindNames,
+    ...kindNames.flatMap((name) => [`data.${name}`, `result.${name}`, `payload.${name}`]),
     "data", "data.items", "data.transactions", "data.results", "data.data",
     "result", "result.items", "result.data", "payload", "payload.items", "payload.data",
     "response", "response.items", "response.data", "transactions", "results", "items",
@@ -98,12 +101,14 @@ export class FynovoApiClient {
     let page = 1;
 
     while (page <= maxPages) {
-      // Append pagination parameters safely
-      const separator = basePath.includes("?") ? "&" : "?";
-      const pagedPath = `${basePath}${separator}page=${page}&limit=${limit}`;
+      const params = new URLSearchParams(basePath.startsWith("?") ? basePath.slice(1) : "");
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+      const pathWithoutQuery = basePath.split("?")[0];
+      const pagedPath = `${pathWithoutQuery}?${params.toString()}`;
 
       const res = await this.request(pagedPath);
-      const items = extractItems(res, this.contract.pagination?.itemsPath);
+      const items = extractItems(res, this.contract.pagination?.itemsPath, kind);
 
       if (!items) {
         if (page === 1) {

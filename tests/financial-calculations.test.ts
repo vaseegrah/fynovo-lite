@@ -4,6 +4,8 @@ import { businessForTransaction } from "../lib/businesses";
 import { transactionStatus } from "../lib/transaction-status";
 import { amountInMinorUnits } from "../lib/transaction-amount";
 import { isSyncDue } from "../lib/sync-schedule";
+import { parseTransactionDate } from "../lib/transaction-date";
+import { defaultContractFor } from "../lib/fynovo-contract";
 import type { FinancialTransaction } from "../types/financial";
 
 const transaction = (overrides: Partial<FinancialTransaction>): FinancialTransaction => ({ id: "id", originalId: "source-id", type: "income", date: "2026-10-01", description: "Test", category: "Services", amount: 10000, currency: "INR", paymentMethod: "Bank", status: "paid", source: "fynovo", ...overrides });
@@ -17,9 +19,17 @@ describe("financial calculations", () => {
     const summary = calculateSummary([transaction({ amount: 5000000 }), transaction({ id: "e", originalId: "e", type: "expense", amount: 7000000 })]);
     expect(summary.netProfit).toBe(0); expect(summary.netLoss).toBe(2000000);
   });
-  it("excludes pending, cancelled and voided records", () => {
-    const records = [transaction({ status: "pending" }), transaction({ id: "2", originalId: "2", status: "cancelled" }), transaction({ id: "3", originalId: "3", status: "voided" }), transaction({ id: "4", originalId: "4", status: "paid", amount: 50000 })];
-    expect(filterTransactions(records)).toHaveLength(1); expect(calculateSummary(records).totalIncome).toBe(50000);
+  it("includes non-paid transactions in totals but excludes cancelled, voided and refunded records", () => {
+    const records = [
+      transaction({ status: "pending", amount: 10000 }),
+      transaction({ id: "2", originalId: "2", status: "packed", amount: 20000 }),
+      transaction({ id: "3", originalId: "3", status: "cancelled", amount: 30000 }),
+      transaction({ id: "4", originalId: "4", status: "voided", amount: 40000 }),
+      transaction({ id: "5", originalId: "5", status: "refunded", amount: 50000 }),
+      transaction({ id: "6", originalId: "6", status: "paid", amount: 60000 }),
+    ];
+    expect(filterTransactions(records)).toHaveLength(3);
+    expect(calculateSummary(records).totalIncome).toBe(90000);
   });
   it("calculates income and expenses for only the selected day", () => {
     const records = [
@@ -53,6 +63,15 @@ describe("financial calculations", () => {
     expect(isSyncDue(new Date("2026-10-22T12:00:00.000Z"), 1440, now)).toBe(true);
     expect(isSyncDue(new Date("2026-10-23T11:00:00.000Z"), 1440, now)).toBe(false);
     expect(isSyncDue(new Date("2026-10-23T10:00:00.000Z"), 60, now)).toBe(true);
+  });
+  it("filters a shared transactions endpoint by transaction kind", () => {
+    const contract = defaultContractFor("https://fynovo.example/api/v1/transactions");
+    expect(contract.incomePath).toBe("?type=income");
+    expect(contract.expensePath).toBe("?type=expense");
+  });
+  it("parses Fynovo dates displayed as day/month/year", () => {
+    expect(parseTransactionDate("23/10/2026").toISOString()).toBe("2026-10-23T00:00:00.000Z");
+    expect(Number.isNaN(parseTransactionDate("31/02/2026").getTime())).toBe(true);
   });
   it("formats INR amounts without floating point leakage", () => { expect(formatCurrency(12345678)).toBe("₹1,23,457"); });
 });

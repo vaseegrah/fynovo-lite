@@ -11,6 +11,7 @@ const SyncedTransactionSchema = new Schema({
   transactionDate: { type: Date, required: true },
   description: String,
   category: String,
+  subcategory: String,
   amountMinor: { type: Number, required: true },
   currency: { type: String, default: "INR" },
   paymentMethod: String,

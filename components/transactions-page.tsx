@@ -119,7 +119,7 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
                 <tr onClick={() => setSelected(item)} key={item.id} className="cursor-pointer border-b border-line/80 text-sm hover:bg-slate-50">
                   <td className="py-4 pl-1">
                     <b className="block font-medium">{item.description || item.category}</b>
-                    <small className="text-xs text-muted">{item.business || "Fynovo"}</small>
+                    <small className="text-xs text-muted">{[item.business || "Fynovo", item.subcategory].filter(Boolean).join(" · ")}</small>
                   </td>
                   <td className="py-4 text-muted">{item.category}</td>
                   <td className="py-4 text-muted">
@@ -205,6 +205,7 @@ function TransactionModal({ transaction, onClose }: { transaction: FinancialTran
             ["Brand", transaction.business || "—"],
             ["Date", transaction.date],
             ["Category", transaction.category],
+            ...(transaction.subcategory ? [["Subcategory", transaction.subcategory]] : []),
             ["Payment method", transaction.paymentMethod],
             ["Status", transaction.status],
             ["Record ID", transaction.originalId],

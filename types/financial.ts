@@ -1,5 +1,5 @@
 export type TransactionKind = "income" | "expense";
-export type TransactionStatus = "paid" | "pending" | "cancelled" | "refunded" | "voided" | "unknown";
+export type TransactionStatus = "paid" | "pending" | "cancelled" | "refunded" | "voided" | "unknown" | (string & {});
 export type BusinessName = "Techvaseegrah" | "Vaseegrah Veda" | "Vaseegrah Vanam" | "Spa Vaseegrah";
 
 export interface FinancialTransaction {
@@ -9,6 +9,7 @@ export interface FinancialTransaction {
   date: string;
   description: string;
   category: string;
+  subcategory?: string;
   amount: number;
   currency: string;
   paymentMethod: string;

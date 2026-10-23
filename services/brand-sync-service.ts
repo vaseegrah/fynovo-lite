@@ -8,6 +8,7 @@ import { SyncHistory } from "@/models/SyncHistory";
 import { ensureSyncedTransactionIndexes } from "@/services/transaction-index-service";
 import { amountInMinorUnits } from "@/lib/transaction-amount";
 import { transactionStatus } from "@/lib/transaction-status";
+import { parseTransactionDate } from "@/lib/transaction-date";
 import { isSyncDue } from "@/lib/sync-schedule";
 import { syncIntegration } from "@/services/sync-service";
 import type { BusinessName } from "@/types/financial";
@@ -88,7 +89,7 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
 
       for (const entry of entries) {
         const fields = contract.fields;
-        const originalId = String(firstField(entry, [fields.id, "_id", "externalId", "transaction_id", "transactionId"]) ?? "");
+        const originalId = String(firstField(entry, [fields.id, "_id", "externalId", "transaction_id", "transactionId", "incomeId", "income_id"]) ?? "");
         if (!originalId) {
           skippedMissingId++;
           continue;
@@ -98,9 +99,7 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
         const amount = amountField ? amountInMinorUnits(amountField.value, amountField.path) : Number.NaN;
         if (!Number.isSafeInteger(amount)) throw new Error("Fynovo amount must map to an integer minor-unit value.");
 
-        const transactionDate = new Date(String(
-          firstField(entry, [fields.date, "transactionDate", "transaction_date", "createdAt", "created_at", "timestamp"]) ?? "",
-        ));
+        const transactionDate = parseTransactionDate(firstField(entry, [fields.date, "transactionDate", "transaction_date", "incomeDate", "income_date", "createdAt", "created_at", "timestamp"]));
         if (Number.isNaN(transactionDate.getTime())) throw new Error("Fynovo transaction date is invalid.");
         
         const status = transactionStatus(entry, fields.status);
@@ -120,8 +119,9 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
               type: finalType,
               transactionDate,
               amountMinor: amount,
-              description: textValue(firstField(entry, [fields.description, "title", "note", "merchant"]), ""),
-              category: textValue(firstField(entry, [`${fields.category}.name`, fields.category, "category.name", "category"]), "Uncategorised"),
+              description: textValue(firstField(entry, [fields.description, "title", "note", "notes", "description", "merchant"]), ""),
+              category: textValue(firstField(entry, [`${fields.category}.name`, `${fields.category}.title`, "category.name", "category.title", fields.category, "category"]), "Uncategorised"),
+              subcategory: textValue(firstField(entry, ["subcategory.name", "subCategory.name", "sub_category.name", "subcategory.title", "subcategory", "subCategory", "sub_category"]), ""),
               paymentMethod: textValue(firstField(entry, [fields.paymentMethod, "paymentMode", "payment_method", "method"]), ""),
               brand,
               business: brand,

@@ -1,6 +1,6 @@
 import type { DateRange, FinancialSummary, FinancialTransaction } from "@/types/financial";
 
-const excludedStatuses = new Set(["cancelled", "voided"]);
+const excludedStatuses = new Set(["cancelled", "voided", "refunded"]);
 
 export function reportingDate(date: Date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -14,8 +14,7 @@ export function reportingDate(date: Date = new Date()) {
 }
 
 export function isEligibleTransaction(transaction: FinancialTransaction) {
-  // Pending items are excluded until settled/paid.
-  return transaction.status === "paid" && !excludedStatuses.has(transaction.status);
+  return !excludedStatuses.has(transaction.status);
 }
 
 export function inDateRange(date: string, range?: DateRange) {

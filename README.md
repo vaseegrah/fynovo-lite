@@ -13,7 +13,7 @@ Mobile-first Next.js dashboard for Fynovo income, expenses, profit/loss and CSV 
 
 Set `MONGODB_URI`, a long random `SESSION_SECRET`, and a base64-encoded 32-byte `ENCRYPTION_KEY`. Use TLS behind your deployment platform. Create users through the registration screen and set a scheduler to call `GET /api/cron/sync` with `Authorization: Bearer $CRON_SECRET`.
 
-For a base URL ending in `/transactions`, the app automatically requests income and expense separately using `?type=income` and `?type=expense`. For a base URL ending in `/income`, it derives the sibling `/expenses` endpoint, and vice versa. For a different deployment or response shape, add a verified JSON endpoint contract as `FYNOVO_CONTRACT_JSON`:
+For a base URL ending in `/transactions`, the app automatically requests income and expense separately using `?type=income` and `?type=expense`. For a base URL ending in `/income`, it derives the sibling `/expenses` endpoint, and vice versa. Income records support day/month/year dates and category/subcategory fields. For a different deployment or response shape, add a verified JSON endpoint contract as `FYNOVO_CONTRACT_JSON`:
 
 ```json
 {
@@ -39,7 +39,7 @@ Replace every example path and field with values confirmed by Fynovo’s documen
 
 ## Financial treatment
 
-Only `paid` records contribute to totals. Pending, cancelled and voided records are shown in ledgers but excluded. Refunds/reversals should arrive from Fynovo as offsetting settled records; map them accordingly in the verified connector contract. The report uses the transaction date and INR by default.
+Totals include all records except those explicitly marked cancelled, voided, or refunded. This includes pending and other non-paid Fynovo records so the dashboard matches the source income and expense totals. Refunds/reversals should arrive from Fynovo as offsetting records; map them accordingly in the verified connector contract. The report uses the transaction date and INR by default.
 
 ## Deployment notes
 
