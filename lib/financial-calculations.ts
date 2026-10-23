@@ -13,6 +13,15 @@ export function reportingDate(date: Date = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+export function previousYearRange(date: Date = new Date()): DateRange {
+  const previousYear = Number(reportingDate(date).slice(0, 4)) - 1;
+  return {
+    from: `${previousYear}-01-01`,
+    to: `${previousYear}-12-31`,
+    preset: "previous-year",
+  };
+}
+
 export function isEligibleTransaction(transaction: FinancialTransaction) {
   return !excludedStatuses.has(transaction.status);
 }

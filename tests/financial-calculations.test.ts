@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateSummary, filterTransactions, formatCurrency, reportingDate } from "../lib/financial-calculations";
+import { calculateSummary, filterTransactions, formatCurrency, previousYearRange, reportingDate } from "../lib/financial-calculations";
 import { businessForTransaction } from "../lib/businesses";
 import { transactionStatus } from "../lib/transaction-status";
 import { amountInMinorUnits } from "../lib/transaction-amount";
@@ -42,6 +42,16 @@ describe("financial calculations", () => {
   });
   it("uses the India calendar date for UTC transaction timestamps", () => {
     expect(reportingDate(new Date("2026-10-22T20:00:00.000Z"))).toBe("2026-10-23");
+  });
+  it("selects the complete previous calendar year using the India reporting date", () => {
+    const range = previousYearRange(new Date("2026-10-22T20:00:00.000Z"));
+    expect(range).toEqual({ preset: "previous-year", from: "2025-01-01", to: "2025-12-31" });
+    expect(calculateSummary([
+      transaction({ date: "2024-12-31", amount: 10000 }),
+      transaction({ date: "2025-01-01", amount: 20000 }),
+      transaction({ date: "2025-12-31", amount: 30000 }),
+      transaction({ date: "2026-01-01", amount: 40000 }),
+    ], range).totalIncome).toBe(50000);
   });
   it("uses the explicit brand tag over a default business value", () => {
     expect(businessForTransaction("Vaseegrah Veda", "Techvaseegrah")).toBe("Vaseegrah Veda");

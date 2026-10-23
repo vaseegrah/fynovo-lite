@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Download } from "lucide-react";
+import { Download, Radio } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type InstallPromptEvent = Event & {
@@ -45,7 +45,7 @@ export function InstallAppButton() {
     setPromptEvent(null);
   };
 
-  return <div className="relative"><button type="button" onClick={install} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand/20 bg-brand-soft px-2.5 text-xs font-semibold text-brand transition hover:bg-brand/15" title="Download Fynovo as an app"><Download size={15} /><span>Download app</span></button>{showInstructions && <span role="status" className="absolute right-0 top-full z-20 mt-2 w-64 rounded-xl border border-line bg-white p-3 text-xs leading-5 text-muted shadow-card">Use your browser menu and choose “Install app” or “Add to Home Screen”.</span>}</div>;
+  return <div className="relative"><button type="button" onClick={install} aria-label="Download Fynovo as an app" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand/20 bg-brand-soft px-2 sm:px-2.5 text-xs font-semibold text-brand transition hover:bg-brand/15" title="Download Fynovo as an app"><Download size={15} /><span className="hidden sm:inline">Download app</span></button>{showInstructions && <span role="status" className="absolute right-0 top-full z-20 mt-2 w-64 rounded-xl border border-line bg-white p-3 text-xs leading-5 text-muted shadow-card">Use your browser menu and choose “Install app” or “Add to Home Screen”.</span>}</div>;
 }
 
 export function RealtimeStatus() {
@@ -62,5 +62,5 @@ export function RealtimeStatus() {
     };
   }, []);
 
-  return <span title={online ? "Live connection" : "Offline"} className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold ${online ? "border-brand/20 bg-brand-soft text-brand" : "border-danger/20 bg-danger-soft text-danger"}`}><span className="relative grid h-4 w-4 place-items-center"><Activity size={15} /><i className={`absolute right-[-1px] top-0 h-1.5 w-1.5 rounded-full ${online ? "animate-pulse bg-brand" : "bg-danger"}`} /></span><span className="hidden sm:inline">{online ? "Live" : "Offline"}</span></span>;
+  return <span role="status" aria-live="polite" title={online ? "Live connection" : "Offline"} className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-[10px] font-semibold sm:text-xs ${online ? "border-brand/20 bg-brand-soft text-brand" : "border-danger/20 bg-danger-soft text-danger"}`}><span className="relative grid h-4 w-4 place-items-center"><Radio size={16} strokeWidth={2.2} /><i className={`absolute right-[-1px] top-0 h-1.5 w-1.5 rounded-full ring-2 ring-white ${online ? "animate-pulse bg-brand" : "bg-danger"}`} /></span><span>{online ? "Live" : "Offline"}</span></span>;
 }
