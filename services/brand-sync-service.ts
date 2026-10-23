@@ -9,6 +9,7 @@ import { ensureSyncedTransactionIndexes } from "@/services/transaction-index-ser
 import { amountInMinorUnits } from "@/lib/transaction-amount";
 import { transactionStatus } from "@/lib/transaction-status";
 import { parseTransactionDate } from "@/lib/transaction-date";
+import { fynovoTransactionFields } from "@/lib/fynovo-transaction-fields";
 import { isSyncDue } from "@/lib/sync-schedule";
 import { syncIntegration } from "@/services/sync-service";
 import type { BusinessName } from "@/types/financial";
@@ -19,10 +20,6 @@ const field = (value: unknown, path: string): unknown =>
 
 const firstField = (value: unknown, paths: string[]): unknown =>
   paths.map((path) => field(value, path)).find((item) => item !== undefined && item !== null && item !== "");
-
-const firstFieldWithPath = (value: unknown, paths: string[]) =>
-  paths.map((path) => ({ path, value: field(value, path) }))
-    .find((item) => item.value !== undefined && item.value !== null && item.value !== "");
 
 const textValue = (value: unknown, fallback: string): string =>
   typeof value === "string" || typeof value === "number" ? String(value) : fallback;
@@ -89,17 +86,18 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
 
       for (const entry of entries) {
         const fields = contract.fields;
-        const originalId = String(firstField(entry, [fields.id, "_id", "externalId", "transaction_id", "transactionId", "incomeId", "income_id"]) ?? "");
+        const mappedFields = fynovoTransactionFields(entry, fields, kind);
+        const originalId = String(mappedFields.id ?? "");
         if (!originalId) {
           skippedMissingId++;
           continue;
         }
 
-        const amountField = firstFieldWithPath(entry, [fields.amount, "amountMinor", "amount", "totalAmount", "total", "value"]);
+        const amountField = mappedFields.amount;
         const amount = amountField ? amountInMinorUnits(amountField.value, amountField.path) : Number.NaN;
         if (!Number.isSafeInteger(amount)) throw new Error("Fynovo amount must map to an integer minor-unit value.");
 
-        const transactionDate = parseTransactionDate(firstField(entry, [fields.date, "transactionDate", "transaction_date", "incomeDate", "income_date", "createdAt", "created_at", "timestamp"]));
+        const transactionDate = parseTransactionDate(mappedFields.date);
         if (Number.isNaN(transactionDate.getTime())) throw new Error("Fynovo transaction date is invalid.");
         
         const status = transactionStatus(entry, fields.status);

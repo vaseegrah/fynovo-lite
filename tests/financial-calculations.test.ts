@@ -6,6 +6,7 @@ import { amountInMinorUnits } from "../lib/transaction-amount";
 import { isSyncDue } from "../lib/sync-schedule";
 import { parseTransactionDate } from "../lib/transaction-date";
 import { defaultContractFor } from "../lib/fynovo-contract";
+import { fynovoTransactionFields } from "../lib/fynovo-transaction-fields";
 import type { FinancialTransaction } from "../types/financial";
 
 const transaction = (overrides: Partial<FinancialTransaction>): FinancialTransaction => ({ id: "id", originalId: "source-id", type: "income", date: "2026-10-01", description: "Test", category: "Services", amount: 10000, currency: "INR", paymentMethod: "Bank", status: "paid", source: "fynovo", ...overrides });
@@ -78,6 +79,17 @@ describe("financial calculations", () => {
     const contract = defaultContractFor("https://fynovo.example/api/v1/transactions");
     expect(contract.incomePath).toBe("?type=income");
     expect(contract.expensePath).toBe("?type=expense");
+  });
+  it("maps expense-specific IDs, dates, and amounts from the Fynovo expense API", () => {
+    const fields = fynovoTransactionFields(
+      { expenseId: "expense-1", expenseDate: "23/10/2026", expenseAmount: 275 },
+      defaultContractFor("https://fynovo.example/api/v1/expenses").fields,
+      "expense",
+    );
+    expect(fields.id).toBe("expense-1");
+    expect(parseTransactionDate(fields.date).toISOString()).toBe("2026-10-23T00:00:00.000Z");
+    expect(fields.amount).toEqual({ path: "expenseAmount", value: 275 });
+    expect(amountInMinorUnits(fields.amount?.value, fields.amount?.path || "")).toBe(27500);
   });
   it("parses Fynovo dates displayed as day/month/year", () => {
     expect(parseTransactionDate("23/10/2026").toISOString()).toBe("2026-10-23T00:00:00.000Z");

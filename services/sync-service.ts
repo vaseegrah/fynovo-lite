@@ -9,10 +9,10 @@ import { normaliseBusinessName } from "@/lib/businesses";
 import { ensureSyncedTransactionIndexes } from "@/services/transaction-index-service";
 import { amountInMinorUnits } from "@/lib/transaction-amount";
 import { transactionStatus } from "@/lib/transaction-status";
+import { fynovoTransactionFields } from "@/lib/fynovo-transaction-fields";
 
 const field = (value: unknown, path: string) => path.split(".").reduce<unknown>((current, key) => current && typeof current === "object" ? (current as Record<string, unknown>)[key] : undefined, value);
 const firstField = (value: unknown, paths: string[]) => paths.map((path) => field(value, path)).find((item) => item !== undefined && item !== null && item !== "");
-const firstFieldWithPath = (value: unknown, paths: string[]) => paths.map((path) => ({ path, value: field(value, path) })).find((item) => item.value !== undefined && item.value !== null && item.value !== "");
 const textValue = (value: unknown, fallback: string) => typeof value === "string" || typeof value === "number" ? String(value) : fallback;
 export async function syncIntegration(userId: string) {
   await connectToDatabase();
@@ -30,12 +30,13 @@ export async function syncIntegration(userId: string) {
     for (const [type, entries] of [["income", income], ["expense", expense]] as const) {
       for (const entry of entries) {
         const spec = contract.fields;
-        const originalId = String(firstField(entry, [spec.id, "_id", "externalId", "transaction_id", "transactionId"]) ?? "");
+        const mappedFields = fynovoTransactionFields(entry, spec, type);
+        const originalId = String(mappedFields.id ?? "");
         if (!originalId) continue;
-        const amountField = firstFieldWithPath(entry, [spec.amount, "amountMinor", "amount", "totalAmount", "total", "value"]);
+        const amountField = mappedFields.amount;
         const amount = amountField ? amountInMinorUnits(amountField.value, amountField.path) : Number.NaN;
         if (!Number.isSafeInteger(amount)) throw new Error("Fynovo amount must map to an integer minor-unit value.");
-        const transactionDate = new Date(String(firstField(entry, [spec.date, "transactionDate", "transaction_date", "createdAt", "created_at", "timestamp"]) ?? ""));
+        const transactionDate = new Date(String(mappedFields.date ?? ""));
         if (Number.isNaN(transactionDate.getTime())) throw new Error("Fynovo transaction date is invalid.");
         await SyncedTransaction.updateOne(
           { userId, integrationId: integration._id, originalTransactionId: originalId },
