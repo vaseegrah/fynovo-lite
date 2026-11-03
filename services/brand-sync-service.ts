@@ -131,6 +131,7 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
       fetchedByKind[kind] = entries.length;
       const contract = configuredFynovoContract(url);
       if (!contract) throw new Error(`No API contract is configured for ${brand} ${kind}.`);
+      const operations: Parameters<typeof SyncedTransaction.bulkWrite>[0] = [];
 
       for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
         const entry = entries[entryIndex];
@@ -159,73 +160,85 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
         // Update per-kind counters using the final resolved type
         fetchedByKind[finalType] = (fetchedByKind[finalType] || 0) + 1;
 
-        await SyncedTransaction.updateOne(
-          { userId, brand, originalTransactionId: originalId },
-          {
-            $set: {
-              integrationId: integration._id,
-              type: finalType,
-              transactionDate,
-              amountMinor: amount,
-              description: textValue(firstField(entry, [
-                fields.description,
-                "description",
-                "notes",
-                "note",
-                "details",
-                "additionalDetails",
-                "additional_details",
-                "remark",
-                "remarks",
-                "title",
-                "merchant",
-                "source",
-                "sourceName",
-                "source_name",
-                "name",
-              ]), ""),
-              category: textValue(firstField(entry, [
-                `${fields.category}.name`,
-                `${fields.category}.title`,
-                "category.name",
-                "category.title",
-                "categoryName",
-                "category_name",
-                fields.category,
-                "category",
-              ]), "Uncategorised"),
-              subcategory: textValue(firstField(entry, [
-                "subcategory.name",
-                "subCategory.name",
-                "sub_category.name",
-                "subcategory.title",
-                "subcategoryName",
-                "subCategoryName",
-                "sub_category_name",
-                "subcategory",
-                "subCategory",
-                "sub_category",
-              ]), ""),
-              paymentMethod: textValue(firstField(entry, [
-                fields.paymentMethod,
-                "paymentMode",
-                "payment_mode",
-                "paymentMethod",
-                "payment_method",
-                "mode",
-                "method",
-                "payment_type",
-              ]), ""),
-              brand,
-              business: brand,
-              status,
-              currency: textValue(firstField(entry, [fields.currency || "", "currency"]), "INR"),
-              rawPayload: entry,
+        operations.push({
+          updateOne: {
+            filter: { userId, brand, originalTransactionId: originalId },
+            update: {
+              $set: {
+                integrationId: integration._id,
+                type: finalType,
+                transactionDate,
+                amountMinor: amount,
+                description: textValue(firstField(entry, [
+                  fields.description,
+                  "description",
+                  "notes",
+                  "note",
+                  "details",
+                  "additionalDetails",
+                  "additional_details",
+                  "remark",
+                  "remarks",
+                  "title",
+                  "merchant",
+                  "source",
+                  "sourceName",
+                  "source_name",
+                  "name",
+                ]), ""),
+                category: textValue(firstField(entry, [
+                  `${fields.category}.name`,
+                  `${fields.category}.title`,
+                  "category.name",
+                  "category.title",
+                  "categoryName",
+                  "category_name",
+                  fields.category,
+                  "category",
+                ]), "Uncategorised"),
+                subcategory: textValue(firstField(entry, [
+                  "subcategory.name",
+                  "subCategory.name",
+                  "sub_category.name",
+                  "subcategory.title",
+                  "subcategoryName",
+                  "subCategoryName",
+                  "sub_category_name",
+                  "subcategory",
+                  "subCategory",
+                  "sub_category",
+                ]), ""),
+                paymentMethod: textValue(firstField(entry, [
+                  fields.paymentMethod,
+                  "paymentMode",
+                  "payment_mode",
+                  "paymentMethod",
+                  "payment_method",
+                  "mode",
+                  "method",
+                  "payment_type",
+                ]), ""),
+                brand,
+                business: brand,
+                status,
+                currency: textValue(firstField(entry, [fields.currency || "", "currency"]), "INR"),
+                rawPayload: entry,
+              },
             },
+            upsert: true,
           },
-          { upsert: true },
-        );
-        processed++;
+        });
+
+        if (operations.length === 500) {
+          await SyncedTransaction.bulkWrite(operations);
+          processed += operations.length;
+          operations.length = 0;
+        }
+      }
+
+      if (operations.length > 0) {
+        await SyncedTransaction.bulkWrite(operations);
+        processed += operations.length;
       }
     }
 
@@ -260,7 +273,7 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
   }
 }
 
-export async function syncConfiguredBrandIntegrations(userId: string) {
+export async function syncConfiguredBrandIntegrations(userId: string, options: { dueOnly?: boolean } = {}) {
   await connectToDatabase();
   const integration = await FynovoIntegration.findOne({ userId })
     .select("+encryptedApiKey +brands.encryptedApiKey")
@@ -269,20 +282,41 @@ export async function syncConfiguredBrandIntegrations(userId: string) {
       baseUrl?: string;
       incomeBaseUrl?: string;
       expenseBaseUrl?: string;
+      lastSyncAt?: Date;
+      lastSyncStatus?: string;
+      syncIntervalMinutes?: number;
       brands?: BrandIntegrationRow[];
     } | null;
-  const configuredBrands = (integration?.brands || []).filter((item) =>
+  const allConfiguredBrands = (integration?.brands || []).filter((item) =>
     item.encryptedApiKey && (item.baseUrl || item.incomeBaseUrl || item.expenseBaseUrl),
   );
+  const configuredBrands = options.dueOnly
+    ? allConfiguredBrands.filter((item) =>
+      item.lastSyncStatus !== "running" && isSyncDue(item.lastSyncAt, item.syncIntervalMinutes),
+    )
+    : allConfiguredBrands;
+  const emptyResult = {
+    processed: 0,
+    fetched: 0,
+    skippedMissingId: 0,
+    statusCounts: {},
+    brands: [],
+    failed: 0,
+  };
 
-  if (!configuredBrands.length) {
+  if (!allConfiguredBrands.length) {
     const hasLegacyIntegration = integration?.encryptedApiKey
       && (integration?.baseUrl || integration?.incomeBaseUrl || integration?.expenseBaseUrl);
     if (hasLegacyIntegration) {
+      if (options.dueOnly && (
+        integration.lastSyncStatus === "running"
+        || !isSyncDue(integration.lastSyncAt, integration.syncIntervalMinutes)
+      )) return emptyResult;
       return syncIntegration(userId);
     }
     throw new Error("Configure at least one brand API key and endpoint in Settings before syncing.");
   }
+  if (!configuredBrands.length) return emptyResult;
 
   const results = await Promise.all(configuredBrands.map(async ({ brand }) => {
     try {

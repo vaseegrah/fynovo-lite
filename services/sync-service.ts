@@ -31,6 +31,7 @@ export async function syncIntegration(userId: string) {
     const [income, expense] = await Promise.all([client.list("income"), client.list("expense")]);
     let processed = 0;
     for (const [type, entries] of [["income", income], ["expense", expense]] as const) {
+      const operations: Parameters<typeof SyncedTransaction.bulkWrite>[0] = [];
       for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
         const entry = entries[entryIndex];
         const spec = contract.fields;
@@ -46,59 +47,71 @@ export async function syncIntegration(userId: string) {
           `fynovo_${type}_${transactionDate.getTime()}_${amount}_${entryIndex}`;
 
         const finalType = resolveTransactionType(entry, rawAmount, type);
-        await SyncedTransaction.updateOne(
-          { userId, integrationId: integration._id, originalTransactionId: originalId },
-          {
-            $set: {
-              type: finalType,
-              transactionDate,
-              amountMinor: amount,
-              description: textValue(firstField(entry, [
-                spec.description,
-                "description",
-                "notes",
-                "note",
-                "details",
-                "additionalDetails",
-                "additional_details",
-                "remark",
-                "remarks",
-                "title",
-                "merchant",
-                "source",
-                "sourceName",
-                "source_name",
-                "name",
-              ]), ""),
-              category: textValue(firstField(entry, [
-                `${spec.category}.name`,
-                `${spec.category}.title`,
-                "category.name",
-                "category.title",
-                "categoryName",
-                "category_name",
-                spec.category,
-                "category",
-              ]), "Uncategorised"),
-              paymentMethod: textValue(firstField(entry, [
-                spec.paymentMethod,
-                "paymentMode",
-                "payment_mode",
-                "paymentMethod",
-                "payment_method",
-                "mode",
-                "method",
-                "payment_type",
-              ]), ""),
-              business: normaliseBusinessName(firstField(entry, ["business.name", "business", "businessName", "brand.name", "brand", "brandName", "store.name", "store", "storeName", "organization"])),
-              status: transactionStatus(entry, spec.status),
-              currency: textValue(firstField(entry, [spec.currency || "", "currency"]), "INR"),
-              rawPayload: entry,
+        operations.push({
+          updateOne: {
+            filter: { userId, integrationId: integration._id, originalTransactionId: originalId },
+            update: {
+              $set: {
+                type: finalType,
+                transactionDate,
+                amountMinor: amount,
+                description: textValue(firstField(entry, [
+                  spec.description,
+                  "description",
+                  "notes",
+                  "note",
+                  "details",
+                  "additionalDetails",
+                  "additional_details",
+                  "remark",
+                  "remarks",
+                  "title",
+                  "merchant",
+                  "source",
+                  "sourceName",
+                  "source_name",
+                  "name",
+                ]), ""),
+                category: textValue(firstField(entry, [
+                  `${spec.category}.name`,
+                  `${spec.category}.title`,
+                  "category.name",
+                  "category.title",
+                  "categoryName",
+                  "category_name",
+                  spec.category,
+                  "category",
+                ]), "Uncategorised"),
+                paymentMethod: textValue(firstField(entry, [
+                  spec.paymentMethod,
+                  "paymentMode",
+                  "payment_mode",
+                  "paymentMethod",
+                  "payment_method",
+                  "mode",
+                  "method",
+                  "payment_type",
+                ]), ""),
+                business: normaliseBusinessName(firstField(entry, ["business.name", "business", "businessName", "brand.name", "brand", "brandName", "store.name", "store", "storeName", "organization"])),
+                status: transactionStatus(entry, spec.status),
+                currency: textValue(firstField(entry, [spec.currency || "", "currency"]), "INR"),
+                rawPayload: entry,
+              },
             },
+            upsert: true,
           },
-          { upsert: true },
-        );
-        processed++;
+        });
+
+        if (operations.length === 500) {
+          await SyncedTransaction.bulkWrite(operations);
+          processed += operations.length;
+          operations.length = 0;
+        }
+      }
+
+      if (operations.length > 0) {
+        await SyncedTransaction.bulkWrite(operations);
+        processed += operations.length;
       }
     }
     const now = new Date();

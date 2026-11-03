@@ -95,7 +95,7 @@ export function Dashboard({ initialSummaries, initialUnassignedRecords, userName
       if (syncing || document.visibilityState !== "visible") return;
       syncing = true;
       try {
-        const response = await fetch("/api/integration/sync", { method: "POST" });
+        const response = await fetch("/api/integration/sync?automatic=true", { method: "POST" });
         const result = await response.json().catch(() => ({})) as {
           error?: string;
           processed?: number;
