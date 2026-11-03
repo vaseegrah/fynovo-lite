@@ -51,47 +51,35 @@ export async function getBusinessSummariesForUser(
     transactionMatch.transactionDate = { $gte: bounds.from, $lt: bounds.toExclusive };
   }
 
-  const [facets] = await SyncedTransaction.aggregate<{
-    businessSummaries: {
-      _id: string;
-      totalIncome: number;
-      totalExpenses: number;
-      totalTransactions: number;
-    }[];
-    unassigned: { count: number }[];
+  const grouped = await SyncedTransaction.aggregate<{
+    _id: string | null;
+    totalIncome: number;
+    totalExpenses: number;
+    totalTransactions: number;
   }>([
     {
       $match: transactionMatch,
     },
     {
-      $addFields: {
+      $project: {
         summaryBusiness: {
           $cond: [{ $eq: ["$brand", ""] }, "$business", { $ifNull: ["$brand", "$business"] }],
         },
+        type: 1,
+        amountMinor: 1,
       },
     },
     {
-      $facet: {
-        businessSummaries: [
-          { $match: { summaryBusiness: { $in: businessNames } } },
-          {
-            $group: {
-              _id: "$summaryBusiness",
-              totalIncome: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amountMinor", 0] } },
-              totalExpenses: { $sum: { $cond: [{ $eq: ["$type", "expense"] }, "$amountMinor", 0] } },
-              totalTransactions: { $sum: 1 },
-            },
-          },
-        ],
-        unassigned: [
-          { $match: { summaryBusiness: { $nin: businessNames } } },
-          { $count: "count" },
-        ],
+      $group: {
+        _id: "$summaryBusiness",
+        totalIncome: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amountMinor", 0] } },
+        totalExpenses: { $sum: { $cond: [{ $eq: ["$type", "expense"] }, "$amountMinor", 0] } },
+        totalTransactions: { $sum: 1 },
       },
     },
   ]).exec();
-  const grouped = facets?.businessSummaries ?? [];
-  const summaries = new Map(grouped.map((item) => [item._id, item]));
+  const assignedSummaries = grouped.filter((item) => businessNames.some((business) => business === item._id));
+  const summaries = new Map(assignedSummaries.map((item) => [item._id, item]));
 
   const businessSummaries = businessNames.map((business) => {
     const totals = summaries.get(business);
@@ -110,6 +98,8 @@ export async function getBusinessSummariesForUser(
   });
   return {
     summaries: businessSummaries,
-    unassignedRecords: facets?.unassigned[0]?.count ?? 0,
+    unassignedRecords: grouped
+      .filter((item) => !businessNames.some((business) => business === item._id))
+      .reduce((count, item) => count + item.totalTransactions, 0),
   };
 }
