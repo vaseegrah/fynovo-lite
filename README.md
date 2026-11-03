@@ -31,11 +31,19 @@ For a base URL ending in `/transactions`, the app automatically requests income 
     "paymentMethod": "paymentMethod",
     "status": "status",
     "currency": "currency"
+  },
+  "pagination": {
+    "pageParam": "page",
+    "pageSizeParam": "limit",
+    "itemsPath": "data.transactions",
+    "nextPagePath": "meta.nextPage"
   }
 }
 ```
 
-Replace every example path and field with values confirmed by Fynovo’s documentation. Amount values are treated as major currency units (for example, `amount: 250` means ₹250) and converted to integer minor units. If the API returns paise, map the field to a path named `amountMinor` or `amountPaise` so it is stored without another conversion. Payment status is preferred over generic order status; missing status is recorded as unknown rather than assumed paid. The app validates the key server-side against `healthPath`; it never returns or logs a supplied key. `SyncedTransaction` upserts on user, brand and source transaction ID to prevent duplicates. On the first sync after upgrading, the app removes the obsolete unique integration index and creates the current indexes.
+Replace every example path and field with values confirmed by Fynovo’s documentation. The optional pagination settings describe the API’s page and page-size query parameters, the response array path, and (if provided) the response path containing the next-page value or link. Without `pagination`, the client uses `page` and `limit` query parameters and recognizes common response shapes. Both income and expense endpoints are paginated separately; the client stops after 100 pages and reports an error rather than silently truncating a larger result.
+
+The app syncs income and expenses using the saved API key, then filters stored transactions by transaction date for the selected dashboard period. The dashboard supports today, this week (Monday through the current day), this month, this year, previous year, a selected full year, and a custom date range. Calendar periods and inclusive database date bounds use the Asia/Kolkata timezone. Business totals are aggregated from the existing `SyncedTransaction` collection and scoped to the signed-in user and brand; `/api/dashboard` accepts `from` and `to` dates and returns business summaries with `summaryOnly=true`, while `/api/transactions` supports optional `type`, `from`, and `to` filters. Records with missing or unrecognized business tags are reported and not silently assigned to another business. Amount values are treated as major currency units (for example, `amount: 250` means ₹250) and converted to integer minor units. If the API returns paise, map the field to a path named `amountMinor` or `amountPaise` so it is stored without another conversion. Payment status is preferred over generic order status; missing status is recorded as unknown rather than assumed paid. The app validates the key server-side against `healthPath`; it never returns or logs a supplied key. `SyncedTransaction` upserts on user, brand and source transaction ID to prevent duplicates. On the first sync after upgrading, the app removes the obsolete unique integration index and creates the current indexes.
 
 ## Financial treatment
 

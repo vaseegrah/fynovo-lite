@@ -27,7 +27,11 @@ export interface FinancialSummary {
   totalTransactions: number;
 }
 
-export type DatePreset = "today" | "week" | "month" | "year" | "previous-year" | "custom";
+export interface BusinessFinancialSummary extends FinancialSummary {
+  business: BusinessName;
+}
+
+export type DatePreset = "today" | "week" | "month" | "year" | "all-time" | "custom-year" | "custom";
 
 export interface DateRange {
   from: string;

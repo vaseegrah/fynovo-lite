@@ -1,44 +1,53 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDownUp, CalendarDays, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowDownUp, Building2, CalendarDays, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { formatCurrency, isEligibleTransaction } from "@/lib/financial-calculations";
 import type { FinancialTransaction, TransactionKind } from "@/types/financial";
 
-const pageSize = 7;
+const pageSize = 20;
+
 export function TransactionsPage({ transactions, type }: { transactions: FinancialTransaction[]; type: TransactionKind }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
+  const [brand, setBrand] = useState("all");
   const [date, setDate] = useState("");
   const [sort, setSort] = useState<"newest" | "amount">("newest");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<FinancialTransaction | null>(null);
 
   const categories = [...new Set(transactions.map((item) => item.category))].sort();
+  const brandsPresent = [...new Set(
+    transactions.map((item) => item.business).filter(Boolean) as string[]
+  )].sort();
+
   const filtered = useMemo(
     () =>
       transactions
         .filter(
           (item) =>
-            (item.description + item.category).toLowerCase().includes(search.toLowerCase()) &&
+            (item.description + " " + item.category).toLowerCase().includes(search.toLowerCase()) &&
             (category === "all" || item.category === category) &&
+            (brand === "all" || item.business === brand) &&
             (!date || item.date === date),
         )
         .sort((a, b) => (sort === "amount" ? b.amount - a.amount : b.date.localeCompare(a.date))),
-    [transactions, search, category, date, sort],
+    [transactions, search, category, brand, date, sort],
   );
 
   const total = filtered.reduce((sum, item) => sum + (isEligibleTransaction(item) ? item.amount : 0), 0);
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const color = type === "income" ? "brand" : "danger";
+  const accentColor = type === "income" ? "#177C63" : "#BF4A47";
   const label = type === "income" ? "income" : "expenses";
+
+  const resetPage = () => setPage(1);
 
   return (
     <div className="mx-auto max-w-7xl p-5 md:p-8">
       <section
-        className={`rounded-3xl bg-${color} p-5 text-white shadow-card md:p-7`}
-        style={{ background: type === "income" ? "#177C63" : "#BF4A47" }}
+        className="rounded-3xl p-5 text-white shadow-card md:p-7"
+        style={{ background: accentColor }}
       >
         <p className="text-sm text-white/75">Total {label}</p>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
@@ -56,11 +65,8 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
             <input
               value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder={`Search ${label}`}
+              onChange={(event) => { setSearch(event.target.value); resetPage(); }}
+              placeholder={`Search ${label}…`}
               className="h-11 w-full rounded-xl border border-line pl-10 pr-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10"
             />
           </label>
@@ -71,20 +77,14 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
                 aria-label="Filter by date"
                 type="date"
                 value={date}
-                onChange={(event) => {
-                  setDate(event.target.value);
-                  setPage(1);
-                }}
+                onChange={(event) => { setDate(event.target.value); resetPage(); }}
                 className="h-11 w-full rounded-xl border border-line pl-9 pr-2 text-sm outline-none focus:border-brand"
               />
             </label>
             <select
               aria-label="Category"
               value={category}
-              onChange={(event) => {
-                setCategory(event.target.value);
-                setPage(1);
-              }}
+              onChange={(event) => { setCategory(event.target.value); resetPage(); }}
               className="h-11 rounded-xl border border-line px-3 text-sm outline-none focus:border-brand"
             >
               <option value="all">All categories</option>
@@ -92,6 +92,19 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
                 <option key={name}>{name}</option>
               ))}
             </select>
+            {brandsPresent.length > 1 && (
+              <select
+                aria-label="Brand"
+                value={brand}
+                onChange={(event) => { setBrand(event.target.value); resetPage(); }}
+                className="h-11 rounded-xl border border-line px-3 text-sm outline-none focus:border-brand"
+              >
+                <option value="all">All brands</option>
+                {brandsPresent.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setSort(sort === "newest" ? "amount" : "newest")}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line px-3 text-sm font-medium text-muted hover:bg-slate-50"
@@ -108,6 +121,7 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
               <tr className="border-y border-line text-xs font-medium uppercase tracking-wide text-muted">
                 <th className="py-3 pl-1">Description</th>
                 <th className="py-3">Category</th>
+                <th className="py-3">Brand</th>
                 <th className="py-3">Date</th>
                 <th className="py-3">Method</th>
                 <th className="py-3">Status</th>
@@ -119,19 +133,22 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
                 <tr onClick={() => setSelected(item)} key={item.id} className="cursor-pointer border-b border-line/80 text-sm hover:bg-slate-50">
                   <td className="py-4 pl-1">
                     <b className="block font-medium">{item.description || item.category}</b>
-                    <small className="text-xs text-muted">{[item.business || "Fynovo", item.subcategory].filter(Boolean).join(" · ")}</small>
+                    {item.subcategory && <small className="text-xs text-muted">{item.subcategory}</small>}
                   </td>
                   <td className="py-4 text-muted">{item.category}</td>
+                  <td className="py-4 text-muted text-xs">{item.business || "—"}</td>
                   <td className="py-4 text-muted">
                     {new Date(`${item.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                   </td>
-                  <td className="py-4 text-muted">{item.paymentMethod}</td>
+                  <td className="py-4 text-muted">{item.paymentMethod || "—"}</td>
                   <td className="py-4">
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-semibold ${
                         item.status === "paid"
                           ? "bg-brand-soft text-brand"
-                          : "bg-amber-50 text-amber-700"
+                          : item.status === "cancelled" || item.status === "voided" || item.status === "refunded"
+                            ? "bg-slate-100 text-muted line-through"
+                            : "bg-amber-50 text-amber-700"
                       }`}
                     >
                       {item.status}
@@ -145,12 +162,21 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
               ))}
             </tbody>
           </table>
-          {!visible.length && <div className="py-14 text-center text-sm text-muted">No {label} match these filters.</div>}
+          {transactions.length === 0 && (
+            <div className="py-14 text-center">
+              <Building2 className="mx-auto mb-3 text-muted" size={32} />
+              <p className="text-sm text-muted">No {label} records found.</p>
+              <p className="mt-1 text-xs text-muted">Configure your brand API keys in Settings and click Sync Now.</p>
+            </div>
+          )}
+          {transactions.length > 0 && !visible.length && (
+            <div className="py-14 text-center text-sm text-muted">No {label} match these filters.</div>
+          )}
         </div>
 
         <div className="flex items-center justify-between pt-4 text-sm text-muted">
           <p>
-            Page {page} of {pages}
+            {filtered.length} records · Page {page} of {pages}
           </p>
           <div className="flex gap-2">
             <button
@@ -203,11 +229,12 @@ function TransactionModal({ transaction, onClose }: { transaction: FinancialTran
         <dl className="mt-6 divide-y divide-line rounded-2xl border border-line px-4">
           {[
             ["Brand", transaction.business || "—"],
-            ["Date", transaction.date],
+            ["Date", new Date(`${transaction.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })],
             ["Category", transaction.category],
             ...(transaction.subcategory ? [["Subcategory", transaction.subcategory]] : []),
-            ["Payment method", transaction.paymentMethod],
+            ["Payment method", transaction.paymentMethod || "—"],
             ["Status", transaction.status],
+            ["Source", transaction.source],
             ["Record ID", transaction.originalId],
           ].map(([label, value]) => (
             <div className="flex justify-between gap-4 py-3 text-sm" key={label}>

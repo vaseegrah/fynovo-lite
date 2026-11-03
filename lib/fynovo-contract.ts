@@ -13,8 +13,8 @@ const defaultFields = {
 
 export const defaultTransactionsContract: FynovoContract = {
   healthPath: "",
-  incomePath: "",
-  expensePath: "",
+  incomePath: "income",
+  expensePath: "expense",
   authHeader: "Authorization",
   authPrefix: "Bearer ",
   fields: defaultFields,
@@ -25,27 +25,35 @@ export function defaultContractFor(baseUrl?: string): FynovoContract {
   try {
     const url = new URL(baseUrl);
     const path = url.pathname.replace(/\/$/, "");
-    if (path.endsWith("/income")) {
+    if (path.endsWith("/income") || path.endsWith("/incomes")) {
       return {
         ...defaultTransactionsContract,
         incomePath: "",
-        expensePath: "",
-      };
-    }
-    if (path.endsWith("/transactions")) {
-      return {
-        ...defaultTransactionsContract,
-        incomePath: "?type=income",
-        expensePath: "?type=expense",
+        expensePath: "../expense",
       };
     }
     if (path.endsWith("/expenses") || path.endsWith("/expense")) {
       return {
         ...defaultTransactionsContract,
+        incomePath: "../income",
+        expensePath: "",
+      };
+    }
+    if (path.endsWith("/transactions")) {
+      // Some Fynovo instances support type filtering, but many return all records regardless.
+      // Use the transactions endpoint as-is and rely on the 'type' field in each record
+      // for categorization rather than a server-side filter that may be ignored.
+      return {
+        ...defaultTransactionsContract,
         incomePath: "",
         expensePath: "",
       };
     }
+    return {
+      ...defaultTransactionsContract,
+      incomePath: "income",
+      expensePath: "expense",
+    };
   } catch { /* Fall through */ }
   return defaultTransactionsContract;
 }

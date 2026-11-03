@@ -13,13 +13,61 @@ export function reportingDate(date: Date = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-export function previousYearRange(date: Date = new Date()): DateRange {
-  const previousYear = Number(reportingDate(date).slice(0, 4)) - 1;
+export function customYearRange(year: number): DateRange {
+  if (!Number.isInteger(year) || year < 1 || year > 9999) {
+    throw new RangeError("Year must be an integer between 1 and 9999.");
+  }
+  const yearText = String(year).padStart(4, "0");
   return {
-    from: `${previousYear}-01-01`,
-    to: `${previousYear}-12-31`,
-    preset: "previous-year",
+    from: `${yearText}-01-01`,
+    to: `${yearText}-12-31`,
+    preset: "custom-year",
   };
+}
+
+function parseDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date;
+}
+
+export function dateRangeToUtcBounds(range: Pick<DateRange, "from" | "to">) {
+  const from = parseDateOnly(range.from);
+  const to = parseDateOnly(range.to);
+  if (!from || !to || from > to) throw new RangeError("Enter a valid date range.");
+
+  const indiaOffsetMs = 5.5 * 60 * 60 * 1000;
+  const dayMs = 24 * 60 * 60 * 1000;
+  return {
+    from: new Date(from.getTime() - indiaOffsetMs),
+    toExclusive: new Date(to.getTime() + dayMs - indiaOffsetMs),
+  };
+}
+
+type BoundedDatePreset = Exclude<DateRange["preset"], "custom" | "custom-year" | "all-time">;
+
+export function dateRangeForPreset(preset: "all-time", date?: Date): undefined;
+export function dateRangeForPreset(preset: BoundedDatePreset, date?: Date): DateRange;
+export function dateRangeForPreset(
+  preset: BoundedDatePreset | "all-time",
+  date: Date = new Date(),
+): DateRange | undefined {
+  if (preset === "all-time") return undefined;
+  const to = reportingDate(date);
+  const from = parseDateOnly(to);
+  if (!from) throw new RangeError("Could not determine the reporting date.");
+  if (preset === "week") from.setUTCDate(from.getUTCDate() - ((from.getUTCDay() + 6) % 7));
+  else if (preset === "month") from.setUTCDate(1);
+  else if (preset === "year") from.setUTCMonth(0, 1);
+  return { preset, from: from.toISOString().slice(0, 10), to };
 }
 
 export function isEligibleTransaction(transaction: FinancialTransaction) {
@@ -28,8 +76,7 @@ export function isEligibleTransaction(transaction: FinancialTransaction) {
 
 export function inDateRange(date: string, range?: DateRange) {
   if (!range) return true;
-  const value = new Date(`${date}T00:00:00`).getTime();
-  return value >= new Date(`${range.from}T00:00:00`).getTime() && value <= new Date(`${range.to}T23:59:59`).getTime();
+  return date >= range.from && date <= range.to;
 }
 
 export function filterTransactions(transactions: FinancialTransaction[], range?: DateRange) {
@@ -53,7 +100,7 @@ export function calculateSummary(transactions: FinancialTransaction[], range?: D
 }
 
 export function formatCurrency(amountInPaise: number, currency = "INR") {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(amountInPaise / 100);
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(amountInPaise / 100);
 }
 
 export function startOfMonthIso() {

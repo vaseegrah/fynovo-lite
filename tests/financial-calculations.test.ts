@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateSummary, filterTransactions, formatCurrency, previousYearRange, reportingDate } from "../lib/financial-calculations";
+import { calculateSummary, customYearRange, dateRangeForPreset, dateRangeToUtcBounds, filterTransactions, formatCurrency, reportingDate } from "../lib/financial-calculations";
 import { businessForTransaction } from "../lib/businesses";
 import { transactionStatus } from "../lib/transaction-status";
 import { amountInMinorUnits } from "../lib/transaction-amount";
@@ -44,15 +44,35 @@ describe("financial calculations", () => {
   it("uses the India calendar date for UTC transaction timestamps", () => {
     expect(reportingDate(new Date("2026-10-22T20:00:00.000Z"))).toBe("2026-10-23");
   });
-  it("selects the complete previous calendar year using the India reporting date", () => {
-    const range = previousYearRange(new Date("2026-10-22T20:00:00.000Z"));
-    expect(range).toEqual({ preset: "previous-year", from: "2025-01-01", to: "2025-12-31" });
+  it("leaves the all-time preset unbounded so every stored transaction is included", () => {
+    expect(dateRangeForPreset("all-time", new Date("2026-10-22T20:00:00.000Z"))).toBeUndefined();
     expect(calculateSummary([
       transaction({ date: "2024-12-31", amount: 10000 }),
       transaction({ date: "2025-01-01", amount: 20000 }),
-      transaction({ date: "2025-12-31", amount: 30000 }),
       transaction({ date: "2026-01-01", amount: 40000 }),
-    ], range).totalIncome).toBe(50000);
+    ])).toMatchObject({ totalIncome: 70000, totalTransactions: 3 });
+  });
+  it("uses India calendar dates for current month and year presets", () => {
+    const now = new Date("2026-10-22T20:00:00.000Z");
+    expect(dateRangeForPreset("month", now)).toEqual({ preset: "month", from: "2026-10-01", to: "2026-10-23" });
+    expect(dateRangeForPreset("year", now)).toEqual({ preset: "year", from: "2026-01-01", to: "2026-10-23" });
+    expect(dateRangeForPreset("today", now)).toEqual({ preset: "today", from: "2026-10-23", to: "2026-10-23" });
+  });
+  it("uses the current Monday-to-date India calendar week", () => {
+    expect(dateRangeForPreset("week", new Date("2026-10-22T20:00:00.000Z")))
+      .toEqual({ preset: "week", from: "2026-10-19", to: "2026-10-23" });
+  });
+  it("converts inclusive India calendar days to UTC query bounds", () => {
+    const bounds = dateRangeToUtcBounds({ from: "2026-10-23", to: "2026-10-23" });
+    expect(bounds.from.toISOString()).toBe("2026-10-22T18:30:00.000Z");
+    expect(bounds.toExclusive.toISOString()).toBe("2026-10-23T18:30:00.000Z");
+  });
+  it("rejects invalid and reversed date ranges", () => {
+    expect(() => dateRangeToUtcBounds({ from: "2026-02-31", to: "2026-03-01" })).toThrow(RangeError);
+    expect(() => dateRangeToUtcBounds({ from: "2026-03-02", to: "2026-03-01" })).toThrow(RangeError);
+  });
+  it("selects a complete custom calendar year", () => {
+    expect(customYearRange(2024)).toEqual({ preset: "custom-year", from: "2024-01-01", to: "2024-12-31" });
   });
   it("uses the explicit brand tag over a default business value", () => {
     expect(businessForTransaction("Vaseegrah Veda", "Techvaseegrah")).toBe("Vaseegrah Veda");
@@ -95,5 +115,5 @@ describe("financial calculations", () => {
     expect(parseTransactionDate("23/10/2026").toISOString()).toBe("2026-10-23T00:00:00.000Z");
     expect(Number.isNaN(parseTransactionDate("31/02/2026").getTime())).toBe(true);
   });
-  it("formats INR amounts without floating point leakage", () => { expect(formatCurrency(12345678)).toBe("₹1,23,457"); });
+  it("formats INR amounts with paise precision", () => { expect(formatCurrency(12345678)).toBe("₹1,23,456.78"); });
 });

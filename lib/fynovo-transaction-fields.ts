@@ -18,16 +18,71 @@ export function fynovoTransactionFields(
   kind: "income" | "expense",
 ) {
   const kindFields = kind === "income"
-    ? { id: ["incomeId", "income_id"], date: ["incomeDate", "income_date"], amount: ["incomeAmount", "income_amount"] }
-    : { id: ["expenseId", "expense_id"], date: ["expenseDate", "expense_date"], amount: ["expenseAmount", "expense_amount"] };
+    ? {
+        id: ["incomeId", "income_id", "incomeIdStr", "income_id_str", "incomeNo", "income_no"],
+        date: ["incomeDate", "income_date", "receivedAt", "received_at", "depositDate", "deposit_date"],
+        amount: ["incomeAmount", "income_amount", "receivedAmount", "received_amount"],
+      }
+    : {
+        id: ["expenseId", "expense_id", "expenseIdStr", "expense_id_str", "expenseNo", "expense_no"],
+        date: ["expenseDate", "expense_date", "spentAt", "spent_at", "paymentDate", "payment_date"],
+        amount: ["expenseAmount", "expense_amount", "spentAmount", "spent_amount"],
+      };
+
   const id = firstFieldWithPath(entry, [
-    fields.id, "_id", "externalId", "transaction_id", "transactionId", ...kindFields.id,
+    fields.id,
+    "_id",
+    "id",
+    "externalId",
+    "external_id",
+    "transactionId",
+    "transaction_id",
+    "entryId",
+    "entry_id",
+    "recordId",
+    "record_id",
+    "ref",
+    "reference",
+    "referenceNo",
+    "reference_no",
+    "voucherNo",
+    "voucher_no",
+    "invoiceNo",
+    "invoice_no",
+    ...kindFields.id,
   ]);
+
   const date = firstFieldWithPath(entry, [
-    fields.date, "transactionDate", "transaction_date", ...kindFields.date, "date", "createdAt", "created_at", "timestamp",
+    fields.date,
+    ...kindFields.date,
+    "transactionDate",
+    "transaction_date",
+    "entryDate",
+    "entry_date",
+    "date",
+    "paymentDate",
+    "payment_date",
+    "created_at",
+    "createdAt",
+    "timestamp",
+    "updated_at",
+    "updatedAt",
   ]);
+
   const amount = firstFieldWithPath(entry, [
-    fields.amount, "amountMinor", "amount", "totalAmount", "total", "value", ...kindFields.amount,
+    fields.amount,
+    ...kindFields.amount,
+    "amountMinor",
+    "amount_minor",
+    "amount",
+    "totalAmount",
+    "total_amount",
+    "total",
+    "value",
+    "netAmount",
+    "net_amount",
+    "price",
   ]);
+
   return { id: id?.value, date: date?.value, amount };
 }

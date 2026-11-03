@@ -43,12 +43,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ bra
     return NextResponse.json({ error: "At least one valid API base URL (Income or Expense) is required." }, { status: 400 });
   }
 
-  // Validate HTTPS
+  // Validate HTTPS (allow localhost / 127.0.0.1 for local testing)
   for (const [name, u] of [["Income URL", incomeBaseUrl], ["Expense URL", expenseBaseUrl], ["Base URL", baseUrl]]) {
     if (u) {
       try {
         const parsed = new URL(u);
-        if (parsed.protocol !== "https:") {
+        if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
           return NextResponse.json({ error: `${name} must use HTTPS.` }, { status: 400 });
         }
       } catch {
@@ -140,9 +140,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ bra
       apiKeyLast4: (brandUpdate.apiKeyLast4 as string | undefined) ?? null,
     });
   } catch (error) {
+    console.error("[brand-integration] Failed to save brand settings:", error);
     const message = error instanceof Error ? error.message : "Unknown error.";
     if (message.includes("ENCRYPTION_KEY"))
       return NextResponse.json({ error: "Server encryption is misconfigured." }, { status: 500 });
-    return NextResponse.json({ error: "Unable to save brand settings." }, { status: 500 });
+    return NextResponse.json({ error: `Unable to save brand settings: ${message}` }, { status: 500 });
   }
 }

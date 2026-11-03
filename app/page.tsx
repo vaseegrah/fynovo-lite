@@ -1,11 +1,13 @@
 import { AppShell } from "@/components/app-shell";
 import { Dashboard } from "@/components/dashboard";
 import { PageHeader, SyncButton } from "@/components/page-header";
+import { dateRangeForPreset } from "@/lib/financial-calculations";
 import { requireUser } from "@/lib/require-user";
-import { getTransactionsForUser } from "@/services/transaction-service";
+import { getBusinessSummariesForUser } from "@/services/transaction-service";
 
 export default async function HomePage() {
   const user = await requireUser();
-  const [incomeTransactions, expenseTransactions] = await Promise.all([getTransactionsForUser(user.id, "income"), getTransactionsForUser(user.id, "expense")]);
-  return <AppShell><PageHeader title="Overview" action={<SyncButton />} /><Dashboard incomeTransactions={incomeTransactions} expenseTransactions={expenseTransactions} userName={user.name} /></AppShell>;
+  const initialRange = dateRangeForPreset("month");
+  const { summaries, unassignedRecords } = await getBusinessSummariesForUser(user.id, initialRange);
+  return <AppShell><PageHeader title="Overview" action={<SyncButton />} /><Dashboard initialSummaries={summaries} initialUnassignedRecords={unassignedRecords} userName={user.name} /></AppShell>;
 }

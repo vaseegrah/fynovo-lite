@@ -10,9 +10,12 @@ import { amountInMinorUnits } from "@/lib/transaction-amount";
 import { transactionStatus } from "@/lib/transaction-status";
 import { parseTransactionDate } from "@/lib/transaction-date";
 import { fynovoTransactionFields } from "@/lib/fynovo-transaction-fields";
+import { resolveTransactionType } from "@/lib/transaction-type";
 import { isSyncDue } from "@/lib/sync-schedule";
 import { syncIntegration } from "@/services/sync-service";
 import type { BusinessName } from "@/types/financial";
+
+export { resolveTransactionType };
 
 const field = (value: unknown, path: string): unknown =>
   path.split(".").reduce<unknown>((current, key) =>
@@ -45,8 +48,28 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
   const brandIntegration = (integration.brands as BrandIntegrationRow[]).find((item) => item.brand === brand);
   if (!brandIntegration?.encryptedApiKey) throw new Error(`Save an API key for ${brand} before syncing.`);
 
-  const incomeUrl = brandIntegration.incomeBaseUrl || brandIntegration.baseUrl;
-  const expenseUrl = brandIntegration.expenseBaseUrl || brandIntegration.baseUrl;
+  let incomeUrl = brandIntegration.incomeBaseUrl?.trim() || brandIntegration.baseUrl?.trim() || "";
+  let expenseUrl = brandIntegration.expenseBaseUrl?.trim() || brandIntegration.baseUrl?.trim() || "";
+
+  // Derive missing URL from the other when only one is provided
+  if (incomeUrl && !expenseUrl) {
+    if (incomeUrl.endsWith("/income")) {
+      expenseUrl = incomeUrl.replace(/\/income$/, "/expense");
+    } else if (incomeUrl.endsWith("/incomes")) {
+      expenseUrl = incomeUrl.replace(/\/incomes$/, "/expenses");
+    } else {
+      expenseUrl = incomeUrl;
+    }
+  } else if (expenseUrl && !incomeUrl) {
+    if (expenseUrl.endsWith("/expense")) {
+      incomeUrl = expenseUrl.replace(/\/expense$/, "/income");
+    } else if (expenseUrl.endsWith("/expenses")) {
+      incomeUrl = expenseUrl.replace(/\/expenses$/, "/income");
+    } else {
+      incomeUrl = expenseUrl;
+    }
+  }
+
   if (!incomeUrl && !expenseUrl) throw new Error(`Configure an Income or Expense API URL for ${brand}.`);
 
   const history = await SyncHistory.create({ userId, integrationId: integration._id, status: "running", brand });
@@ -59,55 +82,82 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
     const apiKey = decryptSecret(brandIntegration.encryptedApiKey);
     const tasks: { kind: "income" | "expense"; url: string; request: Promise<unknown[]> }[] = [];
 
-    if (incomeUrl) {
+    if (incomeUrl && expenseUrl && incomeUrl === expenseUrl) {
+      // Both URLs point to the same endpoint (e.g. /transactions). Fetch once and split by type.
       const contract = configuredFynovoContract(incomeUrl);
-      if (!contract) throw new Error(`No API contract is configured for ${brand} income.`);
-      tasks.push({ kind: "income", url: incomeUrl, request: new FynovoApiClient(incomeUrl, apiKey, contract).list("income") });
+      if (!contract) throw new Error(`No API contract is configured for ${brand}.`);
+      // When incomePath === expensePath, we'll fetch once and the record type field splits them
+      if (contract.incomePath === contract.expensePath) {
+        console.log(`[brand-sync][${brand}] Same income/expense path (${contract.incomePath}), fetching combined and splitting by record type`);
+        tasks.push({ kind: "income", url: incomeUrl, request: new FynovoApiClient(incomeUrl, apiKey, contract).list("income") });
+      } else {
+        tasks.push({ kind: "income", url: incomeUrl, request: new FynovoApiClient(incomeUrl, apiKey, contract).list("income") });
+        tasks.push({ kind: "expense", url: expenseUrl, request: new FynovoApiClient(expenseUrl, apiKey, contract).list("expense") });
+      }
+    } else {
+      if (incomeUrl) {
+        const contract = configuredFynovoContract(incomeUrl);
+        if (!contract) throw new Error(`No API contract is configured for ${brand} income.`);
+        console.log(`[brand-sync][${brand}] Fetching income from ${incomeUrl} (path: ${contract.incomePath})`);
+        tasks.push({ kind: "income", url: incomeUrl, request: new FynovoApiClient(incomeUrl, apiKey, contract).list("income") });
+      }
+
+      if (expenseUrl) {
+        const contract = configuredFynovoContract(expenseUrl);
+        if (!contract) throw new Error(`No API contract is configured for ${brand} expense.`);
+        console.log(`[brand-sync][${brand}] Fetching expense from ${expenseUrl} (path: ${contract.expensePath})`);
+        tasks.push({ kind: "expense", url: expenseUrl, request: new FynovoApiClient(expenseUrl, apiKey, contract).list("expense") });
+      }
     }
 
-    if (expenseUrl) {
-      const contract = configuredFynovoContract(expenseUrl);
-      if (!contract) throw new Error(`No API contract is configured for ${brand} expense.`);
-      tasks.push({ kind: "expense", url: expenseUrl, request: new FynovoApiClient(expenseUrl, apiKey, contract).list("expense") });
-    }
-
-    const responses = await Promise.all(tasks.map((task) => task.request));
+    const taskResults = await Promise.allSettled(tasks.map((task) => task.request));
     let processed = 0;
     let skippedMissingId = 0;
     const fetchedByKind: Record<"income" | "expense", number> = { income: 0, expense: 0 };
     const statusCounts: Record<string, number> = {};
+    const taskErrors: string[] = [];
 
     for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
       const { kind, url } = tasks[taskIndex];
-      const entries = responses[taskIndex];
+      const result = taskResults[taskIndex];
+      if (result.status === "rejected") {
+        const errMsg = result.reason instanceof Error ? result.reason.message : "Fetch failed";
+        console.error(`[brand-sync][${brand}] ${kind} fetch failed:`, errMsg);
+        taskErrors.push(`${kind}: ${errMsg}`);
+        continue;
+      }
+      const entries = result.value;
+      console.log(`[brand-sync][${brand}] ${kind} fetch succeeded: ${entries.length} records from ${url}`);
       fetchedByKind[kind] = entries.length;
       const contract = configuredFynovoContract(url);
       if (!contract) throw new Error(`No API contract is configured for ${brand} ${kind}.`);
 
-      for (const entry of entries) {
+      for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+        const entry = entries[entryIndex];
         const fields = contract.fields;
         const mappedFields = fynovoTransactionFields(entry, fields, kind);
-        const originalId = String(mappedFields.id ?? "");
-        if (!originalId) {
-          skippedMissingId++;
-          continue;
-        }
 
         const amountField = mappedFields.amount;
-        const amount = amountField ? amountInMinorUnits(amountField.value, amountField.path) : Number.NaN;
-        if (!Number.isSafeInteger(amount)) throw new Error("Fynovo amount must map to an integer minor-unit value.");
+        const rawAmount = amountField ? amountInMinorUnits(amountField.value, amountField.path) : Number.NaN;
+        if (!Number.isSafeInteger(rawAmount)) continue;
+        const amount = Math.abs(rawAmount);
 
         const transactionDate = parseTransactionDate(mappedFields.date);
-        if (Number.isNaN(transactionDate.getTime())) throw new Error("Fynovo transaction date is invalid.");
-        
+        if (Number.isNaN(transactionDate.getTime())) continue;
+
+        const originalId = String(mappedFields.id ?? "").trim() ||
+          `fynovo_${kind}_${transactionDate.getTime()}_${amount}_${entryIndex}`;
+
         const status = transactionStatus(entry, fields.status);
         statusCounts[status] = (statusCounts[status] || 0) + 1;
 
-        // If the entry explicitly contains a type property (e.g. from /transactions), respect it
-        const entryType = (typeof (entry as Record<string, unknown>).type === "string"
-          ? String((entry as Record<string, unknown>).type).toLowerCase()
-          : kind) as "income" | "expense";
-        const finalType = entryType === "income" || entryType === "expense" ? entryType : kind;
+        // Always resolve the actual transaction type from the record's own 'type' field.
+        // This is critical when the configured expense URL (e.g. /transactions) returns
+        // records of both types and the server ignores ?type=expense query parameters.
+        const finalType = resolveTransactionType(entry, rawAmount, kind);
+
+        // Update per-kind counters using the final resolved type
+        fetchedByKind[finalType] = (fetchedByKind[finalType] || 0) + 1;
 
         await SyncedTransaction.updateOne(
           { userId, brand, originalTransactionId: originalId },
@@ -117,10 +167,55 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
               type: finalType,
               transactionDate,
               amountMinor: amount,
-              description: textValue(firstField(entry, [fields.description, "title", "note", "notes", "description", "merchant"]), ""),
-              category: textValue(firstField(entry, [`${fields.category}.name`, `${fields.category}.title`, "category.name", "category.title", fields.category, "category"]), "Uncategorised"),
-              subcategory: textValue(firstField(entry, ["subcategory.name", "subCategory.name", "sub_category.name", "subcategory.title", "subcategory", "subCategory", "sub_category"]), ""),
-              paymentMethod: textValue(firstField(entry, [fields.paymentMethod, "paymentMode", "payment_method", "method"]), ""),
+              description: textValue(firstField(entry, [
+                fields.description,
+                "description",
+                "notes",
+                "note",
+                "details",
+                "additionalDetails",
+                "additional_details",
+                "remark",
+                "remarks",
+                "title",
+                "merchant",
+                "source",
+                "sourceName",
+                "source_name",
+                "name",
+              ]), ""),
+              category: textValue(firstField(entry, [
+                `${fields.category}.name`,
+                `${fields.category}.title`,
+                "category.name",
+                "category.title",
+                "categoryName",
+                "category_name",
+                fields.category,
+                "category",
+              ]), "Uncategorised"),
+              subcategory: textValue(firstField(entry, [
+                "subcategory.name",
+                "subCategory.name",
+                "sub_category.name",
+                "subcategory.title",
+                "subcategoryName",
+                "subCategoryName",
+                "sub_category_name",
+                "subcategory",
+                "subCategory",
+                "sub_category",
+              ]), ""),
+              paymentMethod: textValue(firstField(entry, [
+                fields.paymentMethod,
+                "paymentMode",
+                "payment_mode",
+                "paymentMethod",
+                "payment_method",
+                "mode",
+                "method",
+                "payment_type",
+              ]), ""),
               brand,
               business: brand,
               status,
@@ -133,6 +228,14 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
         processed++;
       }
     }
+
+    if (tasks.length > 0 && taskErrors.length === tasks.length) {
+      throw new Error(taskErrors.join("; "));
+    }
+
+    const incomeCount = fetchedByKind.income;
+    const expenseCount = fetchedByKind.expense;
+    console.log(`[brand-sync][${brand}] Sync complete: ${processed} processed, ${incomeCount} income, ${expenseCount} expense, errors: ${taskErrors.length}`);
 
     const now = new Date();
     await Promise.all([
@@ -160,13 +263,26 @@ export async function syncBrandIntegration(userId: string, brand: BusinessName) 
 export async function syncConfiguredBrandIntegrations(userId: string) {
   await connectToDatabase();
   const integration = await FynovoIntegration.findOne({ userId })
-    .select("+brands.encryptedApiKey")
-    .lean() as unknown as { brands?: BrandIntegrationRow[] } | null;
+    .select("+encryptedApiKey +brands.encryptedApiKey")
+    .lean() as unknown as {
+      encryptedApiKey?: string;
+      baseUrl?: string;
+      incomeBaseUrl?: string;
+      expenseBaseUrl?: string;
+      brands?: BrandIntegrationRow[];
+    } | null;
   const configuredBrands = (integration?.brands || []).filter((item) =>
     item.encryptedApiKey && (item.baseUrl || item.incomeBaseUrl || item.expenseBaseUrl),
   );
 
-  if (!configuredBrands.length) throw new Error("Configure at least one brand API key and endpoint in Settings before syncing.");
+  if (!configuredBrands.length) {
+    const hasLegacyIntegration = integration?.encryptedApiKey
+      && (integration?.baseUrl || integration?.incomeBaseUrl || integration?.expenseBaseUrl);
+    if (hasLegacyIntegration) {
+      return syncIntegration(userId);
+    }
+    throw new Error("Configure at least one brand API key and endpoint in Settings before syncing.");
+  }
 
   const results = await Promise.all(configuredBrands.map(async ({ brand }) => {
     try {

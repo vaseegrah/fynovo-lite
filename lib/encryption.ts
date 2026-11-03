@@ -1,11 +1,12 @@
 import crypto from "crypto";
 
-function key() {
+function key(): Buffer {
   const value = process.env.ENCRYPTION_KEY;
   if (!value) throw new Error("ENCRYPTION_KEY is required to store integration credentials.");
   const result = Buffer.from(value, "base64");
-  if (result.length !== 32) throw new Error("ENCRYPTION_KEY must be a base64-encoded 32-byte key.");
-  return result;
+  if (result.length === 32) return result;
+  if (result.length > 32) return result.subarray(0, 32);
+  return crypto.createHash("sha256").update(value).digest();
 }
 
 export function encryptSecret(plainText: string) {

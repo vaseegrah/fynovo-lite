@@ -12,7 +12,10 @@ globalWithMongoose.mongoose = cached;
 export async function connectToDatabase() {
   if (!uri) throw new Error("MONGODB_URI is required.");
   if (cached.conn) return cached.conn;
-  cached.promise ??= mongoose.connect(uri, { serverSelectionTimeoutMS: 5_000 });
+  cached.promise ??= mongoose.connect(uri, { serverSelectionTimeoutMS: 5_000 }).catch((error: unknown) => {
+    cached.promise = null;
+    throw error;
+  });
   cached.conn = await cached.promise;
   return cached.conn;
 }

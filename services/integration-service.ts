@@ -120,3 +120,123 @@ export async function getIntegrationForUser(userId: string): Promise<Integration
     brands,
   };
 }
+
+export interface ExternalTransaction {
+  externalId: string;
+  type: "income" | "expense";
+  amount: number;
+  category: string;
+  description: string;
+  date: Date;
+}
+
+interface APIResponse {
+  transactions?: Array<{
+    id?: string;
+    transaction_id?: string;
+    externalId?: string;
+    type?: "income" | "expense" | "credit" | "debit";
+    amount: number;
+    category?: string;
+    description?: string;
+    name?: string;
+    date?: string;
+    created_at?: string;
+  }>;
+  data?: Array<{
+    id?: string;
+    transaction_id?: string;
+    externalId?: string;
+    type?: "income" | "expense" | "credit" | "debit";
+    amount: number;
+    category?: string;
+    description?: string;
+    name?: string;
+    date?: string;
+    created_at?: string;
+  }>;
+  error?: string;
+  message?: string;
+}
+
+function normalizeType(raw: string | undefined, amount: number): "income" | "expense" {
+  if (raw === "income" || raw === "credit") return "income";
+  if (raw === "expense" || raw === "debit") return "expense";
+  return amount >= 0 ? "income" : "expense";
+}
+
+function normalizeTransaction(raw: any): ExternalTransaction {
+  const amount = Math.abs(Number(raw.amount) || 0);
+  return {
+    externalId: raw.id || raw.transaction_id || raw.externalId || `ext_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type: normalizeType(raw.type, raw.amount),
+    amount,
+    category: raw.category || "other",
+    description: raw.description || raw.name || "API Transaction",
+    date: new Date(raw.date || raw.created_at || Date.now()),
+  };
+}
+
+export async function fetchTransactionsFromAPI(apiKey: string): Promise<ExternalTransaction[]> {
+  if (!apiKey || apiKey.trim().length === 0) {
+    console.warn("[integration] No API key provided, skipping fetch.");
+    return [];
+  }
+
+  const apiBaseUrl = process.env.FINANCIAL_API_URL || "https://api.fyno.finance/v1";
+  const endpoint = `${apiBaseUrl}/transactions`;
+
+  console.log(`[integration] Fetching transactions from ${endpoint} with key ${apiKey.substring(0, 4)}...`);
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "X-API-Key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error(`[integration] API returned ${response.status}: ${errorText}`);
+      throw new Error(`API returned status ${response.status}: ${errorText}`);
+    }
+
+    const body = await response.json() as APIResponse;
+    let rawTransactions: any[] = [];
+
+    if (Array.isArray(body)) {
+      rawTransactions = body;
+    } else if (body.transactions && Array.isArray(body.transactions)) {
+      rawTransactions = body.transactions;
+    } else if (body.data && Array.isArray(body.data)) {
+      rawTransactions = body.data;
+    } else {
+      console.warn("[integration] Unrecognised response shape, returning empty.", Object.keys(body));
+      return [];
+    }
+
+    const transactions = rawTransactions
+      .filter((t) => t && typeof t.amount !== "undefined")
+      .map(normalizeTransaction);
+
+    console.log(`[integration] Fetched ${transactions.length} transactions.`);
+    return transactions;
+  } catch (error: any) {
+    if (error.name === "AbortError") {
+      console.error("[integration] Request timed out after 15s.");
+    } else {
+      console.error("[integration] Failed to fetch transactions:", error.message);
+    }
+    throw error;
+  }
+}
