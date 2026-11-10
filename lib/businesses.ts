@@ -2,6 +2,12 @@ import type { BusinessName } from "@/types/financial";
 
 export const businessNames: BusinessName[] = ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Edibles", "Spa Vaseegrah"];
 
+export function displayBusinessName(name: BusinessName): BusinessName {
+  if (name === "Vaseegrah Edibles") return "Spa Vaseegrah";
+  if (name === "Spa Vaseegrah") return "Vaseegrah Edibles";
+  return name;
+}
+
 export function businessForTransaction(brand?: BusinessName, business?: BusinessName): BusinessName {
   return brand || business || "Techvaseegrah";
 }

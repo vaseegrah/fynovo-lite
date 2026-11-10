@@ -2,6 +2,7 @@
 
 import { type FormEvent, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { displayBusinessName } from "@/lib/businesses";
 import type { IntegrationPublicData, BrandIntegration, BusinessName } from "@/types/financial";
 import type { PreferencesData } from "@/services/preferences-service";
 
@@ -13,15 +14,15 @@ type SettingsData = IntegrationPublicData & {
 const BRAND_ICONS: Record<BusinessName, string> = {
   "Techvaseegrah": "🏢",
   "Vaseegrah Veda": "✨",
-  "Vaseegrah Edibles": "🌿",
-  "Spa Vaseegrah": "💆",
+  "Vaseegrah Edibles": "💆",
+  "Spa Vaseegrah": "🌿",
 };
 
 const BRAND_COLORS: Record<BusinessName, string> = {
   "Techvaseegrah": "bg-blue-50 text-blue-600",
   "Vaseegrah Veda": "bg-amber-50 text-amber-600",
-  "Vaseegrah Edibles": "bg-green-50 text-green-600",
-  "Spa Vaseegrah": "bg-purple-50 text-purple-600",
+  "Vaseegrah Edibles": "bg-purple-50 text-purple-600",
+  "Spa Vaseegrah": "bg-green-50 text-green-600",
 };
 
 function formatDateTime(value?: string) {
@@ -33,7 +34,9 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
   const [incomeBaseUrl, setIncomeBaseUrl] = useState(data.incomeBaseUrl || data.baseUrl || "");
   const [expenseBaseUrl, setExpenseBaseUrl] = useState(data.expenseBaseUrl || "");
   const [apiKey, setApiKey] = useState("");
-  const [apiKeyName, setApiKeyName] = useState(data.apiKeyName || data.brand);
+  const [apiKeyName, setApiKeyName] = useState(
+    data.apiKeyName && data.apiKeyName !== data.brand ? data.apiKeyName : displayBusinessName(data.brand),
+  );
   const [interval, setInterval] = useState(String(data.syncIntervalMinutes || 1440));
   const [showKey, setShowKey] = useState(false);
   const [apiKeyLast4, setApiKeyLast4] = useState(data.apiKeyLast4 || null);
@@ -79,7 +82,7 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
       try {
         const syncResult = await request(`/api/integration/brand/${encodedBrand}/sync`);
         setLastSyncAt(new Date().toISOString()); setLastSyncStatus("success");
-        setMessage(syncSummary(syncResult, data.brand));
+        setMessage(syncSummary(syncResult, displayBusinessName(data.brand)));
       } catch (cause) {
         setError(`Saved, but sync failed: ${cause instanceof Error ? cause.message : "Unknown error."}`);
       }
@@ -97,7 +100,7 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
         baseUrl: incomeBaseUrl || expenseBaseUrl,
         apiKey,
       });
-      setMessage(`${data.brand} connection verified successfully.`);
+      setMessage(`${displayBusinessName(data.brand)} connection verified successfully.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection test failed.");
     } finally { setBusy(null); }
@@ -108,7 +111,7 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
     try {
       const result = await request(`/api/integration/brand/${encodedBrand}/sync`);
       setLastSyncAt(new Date().toISOString()); setLastSyncStatus("success");
-      setMessage(syncSummary(result, data.brand));
+      setMessage(syncSummary(result, displayBusinessName(data.brand)));
     } catch (cause) {
       setLastSyncStatus("failed");
       setError(cause instanceof Error ? cause.message : "Sync failed.");
@@ -125,7 +128,7 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
           {BRAND_ICONS[data.brand]}
         </span>
         <div className="min-w-0">
-          <h3 className="font-semibold text-ink truncate">{data.brand}</h3>
+          <h3 className="font-semibold text-ink truncate">{displayBusinessName(data.brand)}</h3>
           <div className="flex items-center gap-2 mt-0.5">
             <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${isConfigured ? "bg-brand-soft text-brand" : "bg-slate-100 text-muted"}`}>
               {isConfigured ? "Connected" : "Not connected"}
@@ -190,7 +193,7 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
           <input
             required
             maxLength={80}
-            placeholder={data.brand}
+            placeholder={displayBusinessName(data.brand)}
             value={apiKeyName}
             onChange={(e) => setApiKeyName(e.target.value)}
             className="h-10 w-full rounded-xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/10"
@@ -336,7 +339,7 @@ export function SettingsPage({ integration, preferences }: { integration: Settin
           <dl className="mt-4 space-y-3 text-sm">
             {brands.map((b) => (
               <div key={b.brand} className="flex justify-between gap-3">
-                <dt className="text-muted">{b.brand}</dt>
+                <dt className="text-muted">{displayBusinessName(b.brand)}</dt>
                 <dd className={`font-semibold text-xs ${b.configured ? "text-brand" : "text-muted"}`}>
                   {b.configured ? `Connected · ${b.lastSyncStatus || "never"}` : "Not connected"}
                 </dd>
@@ -351,7 +354,7 @@ export function SettingsPage({ integration, preferences }: { integration: Settin
             {brands.map((b) => (
               <div key={b.brand} className="rounded-xl bg-canvas px-3 py-2 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="font-medium text-xs">{b.brand}</span>
+                  <span className="font-medium text-xs">{displayBusinessName(b.brand)}</span>
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${b.lastSyncStatus === "success" ? "bg-[#DCFCE7] text-[#15803D]" : b.lastSyncStatus === "failed" ? "bg-danger-soft text-danger" : "bg-slate-100 text-muted"}`}>
                     {b.lastSyncStatus || "never"}
                   </span>

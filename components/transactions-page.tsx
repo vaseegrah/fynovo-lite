@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowDownUp, Building2, CalendarDays, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { displayBusinessName } from "@/lib/businesses";
 import { formatCurrency, isEligibleTransaction } from "@/lib/financial-calculations";
 import type { FinancialTransaction, TransactionKind } from "@/types/financial";
 
@@ -18,7 +19,7 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
 
   const categories = [...new Set(transactions.map((item) => item.category))].sort();
   const brandsPresent = [...new Set(
-    transactions.map((item) => item.business).filter(Boolean) as string[]
+    transactions.flatMap((item) => item.business ? [item.business] : [])
   )].sort();
 
   const filtered = useMemo(
@@ -101,7 +102,7 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
               >
                 <option value="all">All brands</option>
                 {brandsPresent.map((name) => (
-                  <option key={name}>{name}</option>
+                  <option key={name} value={name}>{displayBusinessName(name)}</option>
                 ))}
               </select>
             )}
@@ -136,7 +137,7 @@ export function TransactionsPage({ transactions, type }: { transactions: Financi
                     {item.subcategory && <small className="text-xs text-muted">{item.subcategory}</small>}
                   </td>
                   <td className="py-4 text-muted">{item.category}</td>
-                  <td className="py-4 text-muted text-xs">{item.business || "—"}</td>
+                  <td className="py-4 text-muted text-xs">{item.business ? displayBusinessName(item.business) : "—"}</td>
                   <td className="py-4 text-muted">
                     {new Date(`${item.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                   </td>
@@ -228,7 +229,7 @@ function TransactionModal({ transaction, onClose }: { transaction: FinancialTran
         </p>
         <dl className="mt-6 divide-y divide-line rounded-2xl border border-line px-4">
           {[
-            ["Brand", transaction.business || "—"],
+            ["Brand", transaction.business ? displayBusinessName(transaction.business) : "—"],
             ["Date", new Date(`${transaction.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })],
             ["Category", transaction.category],
             ...(transaction.subcategory ? [["Subcategory", transaction.subcategory]] : []),

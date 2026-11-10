@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowDownRight, ArrowUpRight, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { displayBusinessName } from "@/lib/businesses";
 import { customYearRange, dateRangeForPreset, formatCurrency, reportingDate } from "@/lib/financial-calculations";
 import type { BusinessFinancialSummary, BusinessName, DatePreset, FinancialSummary } from "@/types/financial";
 
 type Preset = DatePreset;
 
-const businesses: { name: BusinessName; caption: string; logo: string }[] = [
-  { name: "Techvaseegrah", caption: "Technology", logo: "/images/20.png" },
-  { name: "Vaseegrah Veda", caption: "Wellness", logo: "/images/18.webp" },
-  { name: "Vaseegrah Edibles", caption: "Nature & care", logo: "/images/19.webp" },
-  { name: "Spa Vaseegrah", caption: "Spa & beauty", logo: "/images/17.webp" },
+const businesses: { business: BusinessName; caption: string; logo: string }[] = [
+  { business: "Techvaseegrah", caption: "Technology", logo: "/images/20.png" },
+  { business: "Vaseegrah Veda", caption: "Wellness", logo: "/images/18.webp" },
+  { business: "Vaseegrah Edibles", caption: "Spa & beauty", logo: "/images/17.webp" },
+  { business: "Spa Vaseegrah", caption: "Nature & care", logo: "/images/19.webp" },
 ];
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string }) {
@@ -151,8 +152,9 @@ export function Dashboard({ initialSummaries, initialUnassignedRecords, userName
     {summaryError && <p role="alert" className="mt-3 rounded-xl border border-danger/20 bg-danger-soft px-3 py-2 text-xs text-danger">{summaryError}</p>}
     {summaryLoading && <p aria-live="polite" className="mt-3 text-xs text-muted">Updating business totals...</p>}
     <section aria-label="Brand totals" className="grid gap-3 sm:mt-6 sm:grid-cols-2 sm:gap-4">
-      {businesses.map(({ name, caption, logo }) => {
-        const summary = businessSummaries.find((item) => item.business === name) ?? emptySummary;
+      {businesses.map(({ business, caption, logo }) => {
+        const name = displayBusinessName(business);
+        const summary = businessSummaries.find((item) => item.business === business) ?? emptySummary;
         const profitAndLoss = summary.netProfit - summary.netLoss;
         return <article key={name} className="min-w-0 rounded-2xl border border-line p-3 shadow-card sm:rounded-3xl sm:p-5">
         <div className="flex min-w-0 items-center gap-2"><span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white sm:h-10 sm:w-10 sm:rounded-xl"><Image src={logo} alt={`${name} logo`} fill sizes="40px" unoptimized loading="eager" className="object-contain" /></span><span className="min-w-0"><b className="block truncate text-sm">{name}</b><small className="block truncate text-[11px] text-muted sm:text-xs">{caption}</small></span></div>
