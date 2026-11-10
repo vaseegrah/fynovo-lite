@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownRight, ArrowUpRight, ShoppingBag, Sparkles, Store, TrendingDown, TrendingUp, Waves, type LucideIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
 import { customYearRange, dateRangeForPreset, formatCurrency, reportingDate } from "@/lib/financial-calculations";
 import type { BusinessFinancialSummary, BusinessName, DatePreset, FinancialSummary } from "@/types/financial";
 
 type Preset = DatePreset;
 
-const businesses: { name: BusinessName; caption: string; icon: LucideIcon; tone: string }[] = [
-  { name: "Techvaseegrah", caption: "Technology", icon: Store, tone: "bg-[#EEF3FF] text-[#537BDB]" },
-  { name: "Vaseegrah Veda", caption: "Wellness", icon: Sparkles, tone: "bg-[#FFF5E5] text-[#C98721]" },
-  { name: "Vaseegrah Vanam", caption: "Nature & care", icon: Waves, tone: "bg-brand-soft text-brand" },
-  { name: "Spa Vaseegrah", caption: "Spa & beauty", icon: ShoppingBag, tone: "bg-[#F6EEFF] text-[#9258C6]" },
+const businesses: { name: BusinessName; caption: string; logo: string }[] = [
+  { name: "Techvaseegrah", caption: "Technology", logo: "/images/20.png" },
+  { name: "Vaseegrah Veda", caption: "Wellness", logo: "/images/18.webp" },
+  { name: "Vaseegrah Edibles", caption: "Nature & care", logo: "/images/19.webp" },
+  { name: "Spa Vaseegrah", caption: "Spa & beauty", logo: "/images/17.webp" },
 ];
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string }) {
@@ -31,6 +32,7 @@ export function Dashboard({ initialSummaries, initialUnassignedRecords, userName
   const [unassignedRecords, setUnassignedRecords] = useState(initialUnassignedRecords);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const initialSummaryLoad = useRef(true);
   // Counter bumped after each successful background sync so summaries refresh automatically
   const [syncTick, setSyncTick] = useState(0);
 
@@ -46,6 +48,11 @@ export function Dashboard({ initialSummaries, initialUnassignedRecords, userName
   const yearOptions = Array.from({ length: Math.max(0, currentYear - 1970 + 1) }, (_, index) => currentYear - index);
 
   useEffect(() => {
+    if (initialSummaryLoad.current) {
+      initialSummaryLoad.current = false;
+      return;
+    }
+
     const controller = new AbortController();
     let active = true;
     const loadSummaries = async () => {
@@ -142,14 +149,13 @@ export function Dashboard({ initialSummaries, initialUnassignedRecords, userName
     {preset === "custom" && <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-line bg-white p-2 text-xs sm:mb-5 sm:gap-2 sm:rounded-2xl sm:p-3 sm:text-sm"><span className="font-medium text-muted">Custom period</span><input aria-label="Custom period start" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} className="h-8 rounded-md border border-line px-1.5 sm:h-9 sm:rounded-lg sm:px-2" /><span className="text-muted">to</span><input aria-label="Custom period end" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} className="h-8 rounded-md border border-line px-1.5 sm:h-9 sm:rounded-lg sm:px-2" /></div>}
 
     {summaryError && <p role="alert" className="mt-3 rounded-xl border border-danger/20 bg-danger-soft px-3 py-2 text-xs text-danger">{summaryError}</p>}
-    {unassignedRecords > 0 && <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{unassignedRecords} records in this period are missing a recognized business tag and are excluded from business totals.</p>}
     {summaryLoading && <p aria-live="polite" className="mt-3 text-xs text-muted">Updating business totals...</p>}
     <section aria-label="Brand totals" className="grid gap-3 sm:mt-6 sm:grid-cols-2 sm:gap-4">
-      {businesses.map(({ name, caption, icon: Icon, tone }) => {
+      {businesses.map(({ name, caption, logo }) => {
         const summary = businessSummaries.find((item) => item.business === name) ?? emptySummary;
         const profitAndLoss = summary.netProfit - summary.netLoss;
         return <article key={name} className="min-w-0 rounded-2xl border border-line p-3 shadow-card sm:rounded-3xl sm:p-5">
-        <div className="flex min-w-0 items-center gap-2"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl ${tone}`}><Icon size={17} /></span><span className="min-w-0"><b className="block truncate text-sm">{name}</b><small className="block truncate text-[11px] text-muted sm:text-xs">{caption}</small></span></div>
+        <div className="flex min-w-0 items-center gap-2"><span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white sm:h-10 sm:w-10 sm:rounded-xl"><Image src={logo} alt={`${name} logo`} fill sizes="40px" unoptimized loading="eager" className="object-contain" /></span><span className="min-w-0"><b className="block truncate text-sm">{name}</b><small className="block truncate text-[11px] text-muted sm:text-xs">{caption}</small></span></div>
         <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
           <BusinessMetric label="Income" value={summary.totalIncome} icon={ArrowDownRight} tone="bg-brand-soft text-brand" borderTone="border-brand/20" />
           <BusinessMetric label="Expenses" value={summary.totalExpenses} icon={ArrowUpRight} tone="bg-danger-soft text-danger" borderTone="border-danger/20" />

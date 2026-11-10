@@ -2,7 +2,7 @@ import { Schema, Types, model, models } from "mongoose";
 
 // Per-brand API key sub-document with separate income and expense base URLs
 const BrandIntegrationSchema = new Schema({
-  brand: { type: String, required: true, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Vanam", "Spa Vaseegrah"] },
+  brand: { type: String, required: true, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Edibles", "Spa Vaseegrah"] },
   baseUrl: { type: String }, // general / fallback
   incomeBaseUrl: { type: String }, // dedicated income endpoint
   expenseBaseUrl: { type: String }, // dedicated expense endpoint

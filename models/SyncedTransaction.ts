@@ -6,7 +6,7 @@ const SyncedTransactionSchema = new Schema({
   originalTransactionId: { type: String, required: true },
   // brand tag — set explicitly by the brand sync route so data is always
   // attributed to the correct business regardless of what the API returns.
-  brand: { type: String, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Vanam", "Spa Vaseegrah"], index: true },
+  brand: { type: String, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Edibles", "Spa Vaseegrah"], index: true },
   type: { type: String, enum: ["income", "expense"], required: true },
   transactionDate: { type: Date, required: true },
   description: String,
@@ -16,7 +16,7 @@ const SyncedTransactionSchema = new Schema({
   currency: { type: String, default: "INR" },
   paymentMethod: String,
   // business mirrors brand for backward compat with existing dashboard queries
-  business: { type: String, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Vanam", "Spa Vaseegrah"], default: "Techvaseegrah" },
+  business: { type: String, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Edibles", "Spa Vaseegrah"], default: "Techvaseegrah" },
   status: { type: String, required: true },
   rawPayload: { type: Schema.Types.Mixed, select: false },
 }, { timestamps: true });

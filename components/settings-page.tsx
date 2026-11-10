@@ -13,14 +13,14 @@ type SettingsData = IntegrationPublicData & {
 const BRAND_ICONS: Record<BusinessName, string> = {
   "Techvaseegrah": "🏢",
   "Vaseegrah Veda": "✨",
-  "Vaseegrah Vanam": "🌿",
+  "Vaseegrah Edibles": "🌿",
   "Spa Vaseegrah": "💆",
 };
 
 const BRAND_COLORS: Record<BusinessName, string> = {
   "Techvaseegrah": "bg-blue-50 text-blue-600",
   "Vaseegrah Veda": "bg-amber-50 text-amber-600",
-  "Vaseegrah Vanam": "bg-green-50 text-green-600",
+  "Vaseegrah Edibles": "bg-green-50 text-green-600",
   "Spa Vaseegrah": "bg-purple-50 text-purple-600",
 };
 
