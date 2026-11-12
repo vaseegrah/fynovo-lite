@@ -8,14 +8,15 @@ import { ArrowDownRight, ArrowUpRight, TrendingDown, TrendingUp, type LucideIcon
 import { displayBusinessName } from "@/lib/businesses";
 import { customYearRange, dateRangeForPreset, formatCurrency, reportingDate } from "@/lib/financial-calculations";
 import type { BusinessFinancialSummary, BusinessName, DatePreset, FinancialSummary } from "@/types/financial";
+import { IdeasExecutionSection } from "@/components/ideas-execution-section";
 
 type Preset = DatePreset;
 
-const businesses: { business: BusinessName; caption: string; logo: string }[] = [
+const businesses: { business: BusinessName; caption: string; logo?: string }[] = [
   { business: "Techvaseegrah", caption: "Technology", logo: "/images/20.png" },
   { business: "Vaseegrah Veda", caption: "Wellness", logo: "/images/18.webp" },
-  { business: "Vaseegrah Edibles", caption: "Spa & beauty", logo: "/images/17.webp" },
-  { business: "Spa Vaseegrah", caption: "Nature & care", logo: "/images/19.webp" },
+  { business: "Spa Vaseegrah", caption: "Spa & beauty", logo: "/images/17.webp" },
+  { business: "Vaseegrah Edibles", caption: "Nature & care", logo: "/images/19.webp" },
 ];
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string; color: string }[]; label?: string }) {
@@ -153,11 +154,10 @@ export function Dashboard({ initialSummaries, initialUnassignedRecords, userName
     {summaryLoading && <p aria-live="polite" className="mt-3 text-xs text-muted">Updating business totals...</p>}
     <section aria-label="Brand totals" className="grid gap-3 sm:mt-6 sm:grid-cols-2 sm:gap-4">
       {businesses.map(({ business, caption, logo }) => {
-        const name = displayBusinessName(business);
         const summary = businessSummaries.find((item) => item.business === business) ?? emptySummary;
         const profitAndLoss = summary.netProfit - summary.netLoss;
-        return <article key={name} className="min-w-0 rounded-2xl border border-line p-3 shadow-card sm:rounded-3xl sm:p-5">
-        <div className="flex min-w-0 items-center gap-2"><span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white sm:h-10 sm:w-10 sm:rounded-xl"><Image src={logo} alt={`${name} logo`} fill sizes="40px" unoptimized loading="eager" className="object-contain" /></span><span className="min-w-0"><b className="block truncate text-sm">{name}</b><small className="block truncate text-[11px] text-muted sm:text-xs">{caption}</small></span></div>
+        return <article key={business} className="min-w-0 rounded-2xl border border-line p-3 shadow-card sm:rounded-3xl sm:p-5">
+        <div className="flex min-w-0 items-center gap-2"><span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white sm:h-10 sm:w-10 sm:rounded-xl">{logo ? <Image src={logo} alt={`${business} logo`} fill sizes="40px" unoptimized loading="eager" className="object-contain" /> : <span aria-hidden className="font-bold text-brand">{business.charAt(0)}</span>}</span><span className="min-w-0"><b className="block truncate text-sm">{business}</b><small className="block truncate text-[11px] text-muted sm:text-xs">{caption}</small></span></div>
         <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
           <BusinessMetric label="Income" value={summary.totalIncome} icon={ArrowDownRight} tone="bg-brand-soft text-brand" borderTone="border-brand/20" />
           <BusinessMetric label="Expenses" value={summary.totalExpenses} icon={ArrowUpRight} tone="bg-danger-soft text-danger" borderTone="border-danger/20" />
@@ -169,6 +169,7 @@ export function Dashboard({ initialSummaries, initialUnassignedRecords, userName
       </article>;
       })}
     </section>
+    <IdeasExecutionSection />
   </div>;
 }
 

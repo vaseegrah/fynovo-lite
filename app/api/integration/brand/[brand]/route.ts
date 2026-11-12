@@ -5,6 +5,8 @@ import { encryptSecret } from "@/lib/encryption";
 import { connectToDatabase } from "@/lib/mongodb";
 import { FynovoIntegration } from "@/models/FynovoIntegration";
 import { AuditLog } from "@/models/AuditLog";
+import { SyncedTransaction } from "@/models/SyncedTransaction";
+import { SyncHistory } from "@/models/SyncHistory";
 import { businessNames } from "@/lib/businesses";
 import { NextResponse } from "next/server";
 import type { BusinessName } from "@/types/financial";
@@ -145,5 +147,84 @@ export async function POST(request: Request, { params }: { params: Promise<{ bra
     if (message.includes("ENCRYPTION_KEY"))
       return NextResponse.json({ error: "Server encryption is misconfigured." }, { status: 500 });
     return NextResponse.json({ error: `Unable to save brand settings: ${message}` }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ brand: string }> }) {
+  const { user, response } = await apiUser();
+  if (!user) return response!;
+  if (!withinRateLimit(`brand-integration-remove:${user.id}`, 10))
+    return NextResponse.json({ error: "Too many requests. Please wait a minute." }, { status: 429 });
+
+  const { brand: brandParam } = await params;
+  const brand = decodeURIComponent(brandParam) as BusinessName;
+  if (!businessNames.includes(brand))
+    return NextResponse.json({ error: "Unknown brand." }, { status: 400 });
+
+  try {
+    await connectToDatabase();
+    const integration = await FynovoIntegration.findOne({ userId: user.id })
+      .select("_id brands.brand")
+      .lean() as unknown as { _id: unknown; brands?: { brand: string }[] } | null;
+    const hasOtherBrand = Boolean(integration?.brands?.some((item) => item.brand !== brand));
+
+    const [transactions, history] = await Promise.all([
+      SyncedTransaction.deleteMany({
+        userId: user.id,
+        $or: [{ brand }, { business: brand }],
+      }),
+      integration
+        ? SyncHistory.deleteMany({
+          userId: user.id,
+          integrationId: integration._id,
+          ...(hasOtherBrand ? { brand } : {}),
+        })
+        : Promise.resolve({ deletedCount: 0 }),
+    ]);
+
+    if (integration) {
+      await FynovoIntegration.updateOne(
+        { userId: user.id },
+        {
+          $pull: { brands: { brand } },
+          ...(!hasOtherBrand ? {
+            $unset: {
+              baseUrl: 1,
+              incomeBaseUrl: 1,
+              expenseBaseUrl: 1,
+              encryptedApiKey: 1,
+              apiKeyName: 1,
+              apiKeyPrefix: 1,
+              apiKeyLast4: 1,
+              apiKeyPermissions: 1,
+              apiKeyCreatedAt: 1,
+              apiKeyExpiresAt: 1,
+              apiKeyLastUsedAt: 1,
+              apiKeyStatus: 1,
+              apiContract: 1,
+              syncIntervalMinutes: 1,
+              lastSyncAt: 1,
+              lastSyncStatus: 1,
+              lastSyncError: 1,
+            },
+          } : {}),
+        },
+      );
+    }
+
+    await AuditLog.create({
+      userId: user.id,
+      action: "brand.removed",
+      metadata: { brand, deletedTransactions: transactions.deletedCount, deletedSyncHistory: history.deletedCount },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      deletedTransactions: transactions.deletedCount,
+      deletedSyncHistory: history.deletedCount,
+    });
+  } catch (error) {
+    console.error("[brand-integration] Failed to remove brand settings:", error);
+    return NextResponse.json({ error: "Unable to remove brand credentials and data." }, { status: 500 });
   }
 }

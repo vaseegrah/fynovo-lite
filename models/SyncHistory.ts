@@ -3,6 +3,7 @@ import { Schema, Types, model, models } from "mongoose";
 const SyncHistorySchema = new Schema({
   userId: { type: Types.ObjectId, required: true, index: true },
   integrationId: { type: Types.ObjectId, required: true, index: true },
+  brand: { type: String, enum: ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Edibles", "Spa Vaseegrah"], index: true },
   status: { type: String, enum: ["success", "failed", "running"], required: true },
   transactionsProcessed: { type: Number, default: 0 },
   error: String,

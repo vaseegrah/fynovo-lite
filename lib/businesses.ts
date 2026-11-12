@@ -2,9 +2,7 @@ import type { BusinessName } from "@/types/financial";
 
 export const businessNames: BusinessName[] = ["Techvaseegrah", "Vaseegrah Veda", "Vaseegrah Edibles", "Spa Vaseegrah"];
 
-export function displayBusinessName(name: BusinessName): BusinessName {
-  if (name === "Vaseegrah Edibles") return "Spa Vaseegrah";
-  if (name === "Spa Vaseegrah") return "Vaseegrah Edibles";
+export function displayBusinessName(name: BusinessName): string {
   return name;
 }
 
@@ -15,7 +13,7 @@ export function businessForTransaction(brand?: BusinessName, business?: Business
 export function normaliseBusinessName(value: unknown): BusinessName {
   const name = String(value ?? "").toLowerCase().replace(/[^a-z]/g, "");
   if (name.includes("veda")) return "Vaseegrah Veda";
-  if (name.includes("Edibles")) return "Vaseegrah Edibles";
+  if (name.includes("edibles") || name.includes("vanam")) return "Vaseegrah Edibles";
   if (name.includes("spa")) return "Spa Vaseegrah";
   return "Techvaseegrah";
 }

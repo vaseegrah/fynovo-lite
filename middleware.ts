@@ -5,4 +5,18 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/", "/income/:path*", "/expenses/:path*", "/reports/:path*", "/settings/:path*"] };
+export const config = {
+  matcher: [
+    "/",
+    "/income/:path*",
+    "/expenses/:path*",
+    "/reports/:path*",
+    "/settings/:path*",
+    "/ideas/:path*",
+    "/execution/:path*",
+    "/calendar/:path*",
+    "/goals/:path*",
+    "/insights/:path*",
+    "/notifications/:path*",
+  ],
+};

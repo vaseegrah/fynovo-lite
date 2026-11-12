@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateSummary, customYearRange, dateRangeForPreset, dateRangeToUtcBounds, filterTransactions, formatCurrency, reportingDate } from "../lib/financial-calculations";
-import { businessForTransaction, displayBusinessName } from "../lib/businesses";
+import { businessForTransaction, businessNames, displayBusinessName, normaliseBusinessName } from "../lib/businesses";
 import { transactionStatus } from "../lib/transaction-status";
 import { amountInMinorUnits } from "../lib/transaction-amount";
 import { isSyncDue } from "../lib/sync-schedule";
@@ -78,9 +78,15 @@ describe("financial calculations", () => {
     expect(businessForTransaction("Vaseegrah Veda", "Techvaseegrah")).toBe("Vaseegrah Veda");
     expect(businessForTransaction(undefined, "Spa Vaseegrah")).toBe("Spa Vaseegrah");
   });
-  it("swaps the displayed names for Vaseegrah Edibles and Spa Vaseegrah", () => {
-    expect(displayBusinessName("Vaseegrah Edibles")).toBe("Spa Vaseegrah");
-    expect(displayBusinessName("Spa Vaseegrah")).toBe("Vaseegrah Edibles");
+  it("returns the business name unchanged from displayBusinessName", () => {
+    expect(displayBusinessName("Vaseegrah Edibles")).toBe("Vaseegrah Edibles");
+    expect(displayBusinessName("Spa Vaseegrah")).toBe("Spa Vaseegrah");
+    expect(displayBusinessName("Techvaseegrah")).toBe("Techvaseegrah");
+  });
+  it("maps legacy Vaseegrah Vanam to Vaseegrah Edibles when normalising", () => {
+    expect(businessNames).not.toContain("Vaseegrah Vanam");
+    expect(normaliseBusinessName("Vaseegrah Vanam")).toBe("Vaseegrah Edibles");
+    expect(normaliseBusinessName("Vaseegrah Edibles")).toBe("Vaseegrah Edibles");
   });
   it("uses payment status rather than order fulfillment status for financial totals", () => {
     expect(transactionStatus({ status: "packed", paymentStatus: "paid" }, "status")).toBe("paid");

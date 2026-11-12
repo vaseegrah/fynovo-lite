@@ -40,13 +40,11 @@ export function defaultContractFor(baseUrl?: string): FynovoContract {
       };
     }
     if (path.endsWith("/transactions")) {
-      // Some Fynovo instances support type filtering, but many return all records regardless.
-      // Use the transactions endpoint as-is and rely on the 'type' field in each record
-      // for categorization rather than a server-side filter that may be ignored.
+      // The shared endpoint supports the same type filters as the dedicated endpoints.
       return {
         ...defaultTransactionsContract,
-        incomePath: "",
-        expensePath: "",
+        incomePath: "?type=income",
+        expensePath: "?type=expense",
       };
     }
     return {

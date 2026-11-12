@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { CheckCircle2, CircleAlert, Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { displayBusinessName } from "@/lib/businesses";
 import type { IntegrationPublicData, BrandIntegration, BusinessName } from "@/types/financial";
 import type { PreferencesData } from "@/services/preferences-service";
@@ -14,15 +14,15 @@ type SettingsData = IntegrationPublicData & {
 const BRAND_ICONS: Record<BusinessName, string> = {
   "Techvaseegrah": "🏢",
   "Vaseegrah Veda": "✨",
-  "Vaseegrah Edibles": "💆",
-  "Spa Vaseegrah": "🌿",
+  "Vaseegrah Edibles": "🌿",
+  "Spa Vaseegrah": "💆",
 };
 
 const BRAND_COLORS: Record<BusinessName, string> = {
   "Techvaseegrah": "bg-blue-50 text-blue-600",
   "Vaseegrah Veda": "bg-amber-50 text-amber-600",
-  "Vaseegrah Edibles": "bg-purple-50 text-purple-600",
-  "Spa Vaseegrah": "bg-green-50 text-green-600",
+  "Vaseegrah Edibles": "bg-green-50 text-green-600",
+  "Spa Vaseegrah": "bg-purple-50 text-purple-600",
 };
 
 function formatDateTime(value?: string) {
@@ -30,7 +30,7 @@ function formatDateTime(value?: string) {
   return new Date(value).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: (updated: BrandIntegration) => void }) {
+function BrandApiCard({ data, onUpdated, onRemoved }: { data: BrandIntegration; onUpdated: (updated: BrandIntegration) => void; onRemoved: (brand: BusinessName) => void }) {
   const [incomeBaseUrl, setIncomeBaseUrl] = useState(data.incomeBaseUrl || data.baseUrl || "");
   const [expenseBaseUrl, setExpenseBaseUrl] = useState(data.expenseBaseUrl || "");
   const [apiKey, setApiKey] = useState("");
@@ -44,13 +44,13 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
   const [lastSyncStatus, setLastSyncStatus] = useState(data.lastSyncStatus);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"save" | "test" | "sync" | null>(null);
+  const [busy, setBusy] = useState<"save" | "test" | "sync" | "remove" | null>(null);
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
   const encodedBrand = encodeURIComponent(data.brand);
 
-  const request = async (url: string, body?: unknown) => {
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const request = async (url: string, body?: unknown, method: "POST" | "DELETE" = "POST") => {
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error || "Something went wrong.");
     return json;
@@ -115,6 +115,29 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
     } catch (cause) {
       setLastSyncStatus("failed");
       setError(cause instanceof Error ? cause.message : "Sync failed.");
+    } finally { setBusy(null); }
+  };
+
+  const removeCredentials = async () => {
+    const brandName = displayBusinessName(data.brand);
+    if (!window.confirm(`Remove ${brandName} credentials and delete all synced data for this brand? This cannot be undone.`)) return;
+
+    setBusy("remove"); setError(null); setMessage(null);
+    try {
+      await request(`/api/integration/brand/${encodedBrand}`, undefined, "DELETE");
+      setIncomeBaseUrl("");
+      setExpenseBaseUrl("");
+      setApiKey("");
+      setApiKeyName(displayBusinessName(data.brand));
+      setApiKeyLast4(null);
+      setInterval("1440");
+      setLastSyncAt(undefined);
+      setLastSyncStatus("never");
+      setShowKey(false);
+      onRemoved(data.brand);
+      setMessage(`${brandName} credentials and synced data were removed.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not remove credentials.");
     } finally { setBusy(null); }
   };
 
@@ -268,6 +291,19 @@ function BrandApiCard({ data, onUpdated }: { data: BrandIntegration; onUpdated: 
             {busy === "sync" ? <LoaderCircle className="animate-spin" size={14} /> : <RefreshCw size={14} />}Sync now
           </button>
         </div>
+        {isConfigured && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+            <p className="text-[11px] leading-4 text-muted">Removes the key and all synced data for this brand.</p>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={removeCredentials}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-danger/30 px-3 text-xs font-semibold text-danger transition hover:bg-danger-soft disabled:opacity-60"
+            >
+              {busy === "remove" ? <LoaderCircle className="animate-spin" size={14} /> : <Trash2 size={14} />}Remove credentials
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -324,7 +360,12 @@ export function SettingsPage({ integration, preferences }: { integration: Settin
 
         <div className="grid gap-5 sm:grid-cols-2">
           {brands.map((brand) => (
-            <BrandApiCard key={brand.brand} data={brand} onUpdated={updateBrand} />
+            <BrandApiCard
+              key={brand.brand}
+              data={brand}
+              onUpdated={updateBrand}
+              onRemoved={(removedBrand) => setBrands((prev) => prev.map((item) => item.brand === removedBrand ? { brand: removedBrand, configured: false, lastSyncStatus: "never" } : item))}
+            />
           ))}
         </div>
       </section>

@@ -2,9 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .card {
+    @apply rounded-3xl border border-line bg-white shadow-card dark:border-white/10 dark:bg-[#12201a];
+  }
+
+  .input {
+    @apply min-h-12 w-full min-w-0 rounded-2xl border border-line bg-white px-4 py-3 text-[15px] text-ink outline-none transition placeholder:text-ink-mute focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5 dark:text-white;
+  }
+
+  .label {
+    @apply mb-2 block text-sm font-bold text-ink dark:text-white;
+  }
+
+  .btn-primary,
+  .btn-outline,
+  .btn-soft {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-primary {
+    @apply bg-brand-600 text-white hover:bg-brand-700;
+  }
+
+  .btn-outline {
+    @apply border border-line bg-white text-ink hover:border-brand/40 hover:bg-brand-soft dark:border-white/10 dark:bg-white/5 dark:text-white;
+  }
+
+  .btn-soft {
+    @apply bg-brand-soft text-brand-700 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-300;
+  }
+
+  .icon-btn {
+    @apply inline-grid min-h-10 min-w-10 place-items-center rounded-xl text-ink-soft transition hover:bg-neutral-100 hover:text-brand dark:text-neutral-300 dark:hover:bg-white/10;
+  }
+
+  .chip {
+    @apply inline-flex min-h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-line bg-white px-3 text-xs font-semibold text-ink-soft transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-neutral-300;
+  }
+
+  .chip-on {
+    @apply border-brand bg-brand-soft text-brand-700 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300;
+  }
+
+  .section-title {
+    @apply text-lg font-bold leading-tight;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-html { min-width: 320px; scroll-behavior: smooth; }
+html { min-width: 0; scroll-behavior: smooth; }
 body { margin: 0; overflow-x: hidden; background: #F7F9FC; color: #17212B; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
 button, input, select { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
